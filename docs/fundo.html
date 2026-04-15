@@ -60,10 +60,7 @@ html { font-size: 14px; }
 body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
 .mono { font-family: 'IBM Plex Mono', monospace; }
 .topbar { background: var(--bg2); border-bottom: 0.5px solid var(--border); padding: 0 28px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
-.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
-.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; color: #F1EFE8; flex-shrink: 0; }
-.logo-name { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
-.logo-name span { color: var(--accent); }
+.logo { display: flex; align-items: center; text-decoration: none; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 .search-section { background: var(--bg2); border-bottom: 0.5px solid var(--border); padding: 14px 28px; }
 .search-wrap { max-width: 900px; margin: 0 auto; }
@@ -161,8 +158,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 <!-- TOPBAR -->
 <div class="topbar">
   <a class="logo" href="#">
-    <div class="logo-icon">FG</div>
-    <div class="logo-name">FII <span>Guia</span></div>
+    <img id="logo-img" src="logo_e_tipo_escuro.svg" alt="FII Guia" style="height:36px;width:auto;display:block;">
   </a>
   <div class="topbar-right">
     <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ tema claro</button>
@@ -587,6 +583,7 @@ function toggleTheme() {
   document.documentElement.classList.toggle('light')
   const isLight = document.documentElement.classList.contains('light')
   document.getElementById('themeBtn').textContent = isLight ? '☾ tema escuro' : '☀ tema claro'
+  document.getElementById('logo-img').src = isLight ? 'logo_e_tipo_claro.svg' : 'logo_e_tipo_escuro.svg'
 }
 
 // ─────────────────────────────────────────────
