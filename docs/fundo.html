@@ -397,8 +397,8 @@ const CDI_MENSAL = 0.0087  // atualizar mensalmente até ter endpoint próprio
 // ─────────────────────────────────────────────
 const fmtPct    = v => v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
 const fmtPctAbs = v => v == null ? '—' : (v * 100).toFixed(1) + '%'
-const fmtBRL    = v => v == null ? '—' : 'R$ ' + v.toFixed(2).replace('.', ',')
-const fmtK      = v => v == null ? '—' : v >= 1000 ? (v/1000).toFixed(1) + 'k' : v.toString()
+const fmtBRL    = v => v == null ? '—' : 'R$ ' + v.toFixed(3).replace('.', ',')
+const fmtK      = v => v == null ? '—' : v >= 1000 ? (v/1000).toFixed(1) + 'k' : Math.round(v).toString()
 const fmtDate   = s => s
 
 function pctColor(v) {
@@ -504,7 +504,7 @@ function render(f) {
 
   // Liquidez
   const [lCls, lTxt] = liqBadge(f.liq_30d)
-  setText('f-liq-val', fmtK(f.liq_30d))
+  setText('f-liq-val', fmtK(Math.round(f.liq_30d)))
   set('f-liq-badge', `<span class="badge ${lCls}">${lTxt}</span>`)
   set('f-pill-liq-7d',  `<div class="pill-label">7d</div><div class="pill-val c-muted">${fmtK(f.liq_7d)}</div>`)
   set('f-pill-liq-30d', `<div class="pill-label">30d</div><div class="pill-val c-muted">${fmtK(f.liq_30d)}</div>`)
