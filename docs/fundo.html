@@ -395,11 +395,11 @@ const CDI_MENSAL = 0.0087  // atualizar mensalmente até ter endpoint próprio
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
-const fmtPct  = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
-const fmtPctAbs = v => (v * 100).toFixed(1) + '%'
-const fmtBRL  = v => 'R$ ' + v.toFixed(2).replace('.', ',')
-const fmtK    = v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v.toString()
-const fmtDate = s => s
+const fmtPct    = v => v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
+const fmtPctAbs = v => v == null ? '—' : (v * 100).toFixed(1) + '%'
+const fmtBRL    = v => v == null ? '—' : 'R$ ' + v.toFixed(2).replace('.', ',')
+const fmtK      = v => v == null ? '—' : v >= 1000 ? (v/1000).toFixed(1) + 'k' : v.toString()
+const fmtDate   = s => s
 
 function pctColor(v) {
   if (v > 0.001) return 'c-green'
@@ -482,10 +482,16 @@ function render(f) {
   set('f-pill-12m',  `<div class="pill-label">12M</div><div class="pill-val ${pctColor(f.preco_12m)}">${fmtPct(f.preco_12m)}</div>`)
 
   // P/VP
-  const pvpDiscount = ((1 - f.pvp) * 100).toFixed(0)
-  setText('f-pvp', f.pvp.toFixed(2))
-  setText('f-pvp-desc', (f.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(pvpDiscount)}%`) + ' sobre o valor patrimonial')
-  document.getElementById('f-pvp-fill').style.width = ((f.pvp - 0.70) / (1.30 - 0.70) * 100).toFixed(1) + '%'
+  if (f.pvp != null) {
+    const pvpDiscount = ((1 - f.pvp) * 100).toFixed(0)
+    setText('f-pvp', f.pvp.toFixed(2))
+    setText('f-pvp-desc', (f.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(pvpDiscount)}%`) + ' sobre o valor patrimonial')
+    document.getElementById('f-pvp-fill').style.width = ((f.pvp - 0.70) / (1.30 - 0.70) * 100).toFixed(1) + '%'
+  } else {
+    setText('f-pvp', '—')
+    setText('f-pvp-desc', 'disponível após informe mensal')
+    document.getElementById('f-pvp-fill').style.width = '0%'
+  }
 
   // Volatilidade
   const [vCls, vTxt] = volBadge(f.vol_90d)
@@ -542,17 +548,18 @@ function render(f) {
 
   // Simulador
   const cotas   = Math.floor(f.sim_investimento / f.preco)
-  const mensal  = Math.round(cotas * f.div_valor)
-  const anual   = mensal * 12
-  const grossup = (f.dy_anual / (1 - 0.20) / f.cdi_mensal / 12 * 100).toFixed(0)
+  const mensal  = f.div_valor != null ? Math.round(cotas * f.div_valor) : null
+  const anual   = mensal != null ? mensal * 12 : null
+  const grossup = (f.dy_anual != null && f.cdi_mensal > 0)
+    ? (f.dy_anual / (1 - 0.20) / f.cdi_mensal / 12 * 100).toFixed(0)
+    : null
   setText('f-sim-cotas',  cotas.toLocaleString('pt-BR'))
   setText('f-sim-preco',  'a ' + fmtBRL(f.preco))
-  setText('f-sim-mensal', 'R$ ' + mensal.toLocaleString('pt-BR'))
-  setText('f-sim-anual',  'R$ ' + anual.toLocaleString('pt-BR'))
-  setText('f-sim-grossup',grossup + '% CDI')
-  // update gross-up tooltip with actual annual amount
+  setText('f-sim-mensal', mensal != null ? 'R$ ' + mensal.toLocaleString('pt-BR') : '—')
+  setText('f-sim-anual',  anual  != null ? 'R$ ' + anual.toLocaleString('pt-BR')  : '—')
+  setText('f-sim-grossup', grossup != null ? grossup + '% CDI' : '—')
   const gtip = document.getElementById('f-grossup-tip')
-  if (gtip) gtip.textContent = `Quanto precisaria render uma aplicação tributada (CDB, Tesouro) para entregar os mesmos R$ ${anual.toLocaleString('pt-BR')} líquidos que este FII entrega isento de IR no ano.`
+  if (gtip && anual != null) gtip.textContent = `Quanto precisaria render uma aplicação tributada (CDB, Tesouro) para entregar os mesmos R$ ${anual.toLocaleString('pt-BR')} líquidos que este FII entrega isento de IR no ano.`
 
   // Gestor IA
   const gestorCard = document.getElementById('f-gestor-content')
