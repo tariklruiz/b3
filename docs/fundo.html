@@ -3,57 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GARE11 — Guia FII</title>
+<title>FII Guia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:        #0d0f12;
-  --bg2:       #13161b;
-  --bg3:       #1a1e25;
-  --bg4:       #21262f;
-  --border:    #2a3040;
-  --border2:   #3a4455;
-  --text:      #e8eaf0;
-  --text2:     #8a95a8;
-  --text3:     #50596a;
-  --green:     #00d68f;
-  --green-bg:  #00d68f18;
-  --green-bd:  #00d68f40;
+  --bg:        #2C2C2A;
+  --bg2:       #1e1e1c;
+  --bg3:       #3D3D3B;
+  --bg4:       #343432;
+  --border:    #3a3a38;
+  --border2:   #4a4a48;
+  --text:      #F1EFE8;
+  --text2:     #b8b4aa;
+  --text3:     #7a7870;
+  --green:     #1D9E75;
+  --green-bg:  #1D9E7520;
+  --green-bd:  #1D9E7550;
   --amber:     #f5a623;
-  --amber-bg:  #f5a62318;
-  --amber-bd:  #f5a62340;
+  --amber-bg:  #f5a62320;
+  --amber-bd:  #f5a62350;
   --red:       #f05252;
-  --red-bg:    #f0525218;
-  --red-bd:    #f0525240;
-  --blue:      #4a9eff;
-  --blue-bg:   #4a9eff18;
-  --blue-bd:   #4a9eff40;
-  --accent:    #00e5a0;
+  --red-bg:    #f0525220;
+  --red-bd:    #f0525250;
+  --blue:      #185FA5;
+  --blue-bg:   #185FA520;
+  --blue-bd:   #185FA550;
+  --accent:    #1D9E75;
 }
 html.light {
-  --bg:        #f5f6f8;
+  --bg:        #F1EFE8;
   --bg2:       #ffffff;
-  --bg3:       #f0f1f4;
-  --bg4:       #e4e6eb;
-  --border:    #dde0e8;
-  --border2:   #c8ccd6;
-  --text:      #111318;
-  --text2:     #4a5264;
-  --text3:     #8a93a8;
-  --green:     #007a52;
-  --green-bg:  #00a86b14;
-  --green-bd:  #00a86b40;
+  --bg3:       #e8e6df;
+  --bg4:       #dddad2;
+  --border:    #d0cdc5;
+  --border2:   #b8b5ae;
+  --text:      #2C2C2A;
+  --text2:     #5a5854;
+  --text3:     #9a9890;
+  --green:     #1D9E75;
+  --green-bg:  #1D9E7516;
+  --green-bd:  #1D9E7545;
   --amber:     #b07200;
-  --amber-bg:  #f5a62314;
-  --amber-bd:  #f5a62350;
+  --amber-bg:  #f5a62316;
+  --amber-bd:  #f5a62345;
   --red:       #c0392b;
-  --red-bg:    #e74c3c12;
+  --red-bg:    #e74c3c14;
   --red-bd:    #e74c3c40;
-  --blue:      #1a6fd4;
-  --blue-bg:   #1a6fd414;
-  --blue-bd:   #1a6fd440;
-  --accent:    #007a52;
+  --blue:      #185FA5;
+  --blue-bg:   #185FA516;
+  --blue-bd:   #185FA545;
+  --accent:    #185FA5;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
@@ -61,7 +61,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .mono { font-family: 'IBM Plex Mono', monospace; }
 .topbar { background: var(--bg2); border-bottom: 0.5px solid var(--border); padding: 0 28px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
 .logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
-.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; color: #0d0f12; flex-shrink: 0; }
+.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; color: #F1EFE8; flex-shrink: 0; }
 .logo-name { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
 .logo-name span { color: var(--accent); }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
@@ -161,8 +161,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 <!-- TOPBAR -->
 <div class="topbar">
   <a class="logo" href="#">
-    <div class="logo-icon">GF</div>
-    <div class="logo-name">Guia<span> FII</span></div>
+    <div class="logo-icon">FG</div>
+    <div class="logo-name">FII <span>Guia</span></div>
   </a>
   <div class="topbar-right">
     <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ tema claro</button>
@@ -311,8 +311,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
     </div>
     <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
     <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2);flex-wrap:wrap;font-family:'IBM Plex Mono',monospace">
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#4a9eff"></div>igual</span>
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#00d68f"></div>maior</span>
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#185FA5"></div>igual</span>
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#1D9E75"></div>maior</span>
       <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623"></div>menor</span>
       <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252"></div>não pagou</span>
     </div>
@@ -433,9 +433,9 @@ function riscoBadge(r) {
 
 function waffleColor(cur, prev) {
   if (cur === null) return '#f05252'
-  if (prev === null || cur > prev) return '#00d68f'
+  if (prev === null || cur > prev) return '#1D9E75'
   if (cur < prev) return '#f5a623'
-  return '#4a9eff'
+  return '#185FA5'
 }
 
 function set(id, html) {
@@ -457,7 +457,7 @@ function setClass(id, cls) {
 // RENDER
 // ─────────────────────────────────────────────
 function render(f) {
-  document.title = f.ticker + ' — Guia FII'
+  document.title = f.ticker + ' — FII Guia'
 
   // Identity
   setText('f-ticker',   f.ticker)
