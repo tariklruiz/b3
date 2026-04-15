@@ -241,7 +241,7 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
         FROM cotahist
         WHERE CodNeg = ? AND TpMerc = 10 AND PrecoUltimo > 0
         ORDER BY DtPregao DESC
-        LIMIT 365
+        LIMIT 520
     """, (t,)).fetchall()
     conn.close()
 
@@ -280,6 +280,7 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
             "d90":  pct_change(90),
             "d180": pct_change(180),
             "12m":  pct_change(252),
+            "24m":  pct_change(504),
         },
         "volatilidade": {
             "7d":  vol(7),
