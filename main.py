@@ -25,7 +25,8 @@ from datetime import datetime, date, timedelta
 # CONFIG
 # ---------------------------------------------------------------------------
 DB_PATH  = os.getenv("DB_PATH",  "data/b3.db")
-DIV_PATH = os.getenv("DIV_PATH", "data/dividendos.db")
+DIV_PATH     = os.getenv("DIV_PATH",     "data/dividendos.db")
+INFORME_PATH = os.getenv("INFORME_PATH", "data/informe_mensal.db")
 
 # ---------------------------------------------------------------------------
 # RATE LIMITER
@@ -62,6 +63,14 @@ def get_div():
     db = Path(DIV_PATH)
     if not db.exists():
         raise HTTPException(status_code=503, detail=f"dividendos.db not found at {DIV_PATH}")
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def get_informe():
+    db = Path(INFORME_PATH)
+    if not db.exists():
+        raise HTTPException(status_code=503, detail=f"informe_mensal.db not found at {INFORME_PATH}")
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     return conn
@@ -362,3 +371,77 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
             "yoy":   dy_yoy,
         },
     }
+
+
+@app.get("/fundo/informe")
+@limiter.limit("30/minute")
+def get_fundo_informe(request: Request, ticker: str = Query(...)):
+    """
+    Returns the latest informe mensal for a given ticker:
+    nome, segmento, PL, NAV/cota, cotistas, tx_adm, DY mensal
+    """
+    t = validate_ticker(ticker)
+
+    # informe_mensal uses cnpj_fundo, not cod_negociacao directly
+    # join via dividendos.db to resolve ticker → cnpj
+    conn_div = get_div()
+    cnpj_row = conn_div.execute("""
+        SELECT cnpj_fundo FROM dividendos
+        WHERE cod_negociacao = ? AND cnpj_fundo IS NOT NULL
+        LIMIT 1
+    """, (t,)).fetchone()
+    conn_div.close()
+
+    if not cnpj_row:
+        raise HTTPException(status_code=404, detail=f"CNPJ não encontrado para {t}")
+
+    cnpj = cnpj_row["cnpj_fundo"]
+
+    conn = get_informe()
+    row = conn.execute("""
+        SELECT
+            nome_fundo,
+            cnpj_fundo,
+            classificacao,
+            subclassificacao,
+            tipo_gestao,
+            nome_administrador,
+            competencia,
+            total_cotistas,
+            patrimonio_liquido,
+            num_cotas_emitidas,
+            valor_patr_cotas,
+            despesas_tx_adm,
+            dividend_yield_mes,
+            rent_patr_mensal,
+            rendimentos_distribuir
+        FROM informe_mensal
+        WHERE cnpj_fundo = ?
+        ORDER BY competencia DESC
+        LIMIT 1
+    """, (cnpj,)).fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Informe mensal não encontrado para {t}")
+
+    r = dict(row)
+    return {
+        "ticker":          t,
+        "cnpj":            cnpj,
+        "nome":            r["nome_fundo"],
+        "classificacao":   r["classificacao"],
+        "subclassificacao": r["subclassificacao"],
+        "tipo_gestao":     r["tipo_gestao"],
+        "administrador":   r["nome_administrador"],
+        "competencia":     r["competencia"],
+        "cotistas":        r["total_cotistas"],
+        "pl":              r["patrimonio_liquido"],
+        "cotas_emitidas":  r["num_cotas_emitidas"],
+        "nav_cota":        r["valor_patr_cotas"],
+        "tx_adm":          r["despesas_tx_adm"],
+        "dy_mes":          r["dividend_yield_mes"],
+        "rent_mensal":     r["rent_patr_mensal"],
+        "rendimentos_distribuir": r["rendimentos_distribuir"],
+    }
+

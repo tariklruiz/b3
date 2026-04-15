@@ -14,7 +14,9 @@ RUN mkdir -p data && \
     wget -q -O data/b3.db \
     "https://www.dropbox.com/scl/fi/h9p6dkp2wy91bmpa91d8u/b3.db?rlkey=ec23sb9j2mkmyqnwez1me5p48&st=wuqbnp72&dl=1" && \
     wget -q -O data/dividendos.db \
-    "https://www.dropbox.com/scl/fi/1je6v5ewqk5fjubr3m0vy/dividendos.db?rlkey=pfbhmudlo4vy8kaasl73byxah&dl=1"
+    "https://www.dropbox.com/scl/fi/1je6v5ewqk5fjubr3m0vy/dividendos.db?rlkey=pfbhmudlo4vy8kaasl73byxah&dl=1" && \
+    wget -q -O data/informe_mensal.db \
+    "https://www.dropbox.com/scl/fi/6sxikc6sb9zdrjwqzpkbp/informe_mensal.db?rlkey=on9yrbva9oy3xe7v0rfzkvsqd&dl=1"
 
 EXPOSE 8000
 
