@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GARE11 — Guia FII</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #0d0f12;
+  --bg2:       #13161b;
+  --bg3:       #1a1e25;
+  --bg4:       #21262f;
+  --border:    #2a3040;
+  --border2:   #3a4455;
+  --text:      #e8eaf0;
+  --text2:     #8a95a8;
+  --text3:     #50596a;
+  --green:     #00d68f;
+  --green-bg:  #00d68f18;
+  --green-bd:  #00d68f40;
+  --amber:     #f5a623;
+  --amber-bg:  #f5a62318;
+  --amber-bd:  #f5a62340;
+  --red:       #f05252;
+  --red-bg:    #f0525218;
+  --red-bd:    #f0525240;
+  --blue:      #4a9eff;
+  --blue-bg:   #4a9eff18;
+  --blue-bd:   #4a9eff40;
+  --accent:    #00e5a0;
+}
+html.light {
+  --bg:        #f5f6f8;
+  --bg2:       #ffffff;
+  --bg3:       #f0f1f4;
+  --bg4:       #e4e6eb;
+  --border:    #dde0e8;
+  --border2:   #c8ccd6;
+  --text:      #111318;
+  --text2:     #4a5264;
+  --text3:     #8a93a8;
+  --green:     #007a52;
+  --green-bg:  #00a86b14;
+  --green-bd:  #00a86b40;
+  --amber:     #b07200;
+  --amber-bg:  #f5a62314;
+  --amber-bd:  #f5a62350;
+  --red:       #c0392b;
+  --red-bg:    #e74c3c12;
+  --red-bd:    #e74c3c40;
+  --blue:      #1a6fd4;
+  --blue-bg:   #1a6fd414;
+  --blue-bd:   #1a6fd440;
+  --accent:    #007a52;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; }
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.topbar { background: var(--bg2); border-bottom: 0.5px solid var(--border); padding: 0 28px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
+.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 500; color: #0d0f12; flex-shrink: 0; }
+.logo-name { font-size: 18px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
+.logo-name span { color: var(--accent); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.search-section { background: var(--bg2); border-bottom: 0.5px solid var(--border); padding: 14px 28px; }
+.search-wrap { max-width: 900px; margin: 0 auto; }
+.search-row { display: flex; align-items: center; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 8px; height: 42px; padding: 0 14px; gap: 10px; transition: border-color .15s; }
+.search-row:focus-within { border-color: var(--accent); }
+.search-icon { display: flex; align-items: center; flex-shrink: 0; color: var(--text2); }
+.search-input { flex: 1; background: transparent; border: none; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--text); outline: none; height: 100%; }
+.search-input::placeholder { color: var(--text3); }
+.search-hint { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-top: 7px; }
+.content { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; transition: opacity .2s; }
+/* FUND HEADER */
+.header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; }
+.ticker-block { display: flex; align-items: center; gap: 14px; }
+.ticker { background: var(--bg4); border: 0.5px solid var(--accent); color: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 500; padding: 7px 16px; border-radius: 6px; letter-spacing: .04em; }
+.fund-name { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fund-sub { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
+.health-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.updated { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-top: 5px; text-align: right; }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; font-family: 'IBM Plex Mono', monospace; }
+.badge-ok    { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bd); }
+.badge-warn  { background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-bd); }
+.badge-bad   { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bd); }
+.badge-neu   { background: var(--bg3); color: var(--text2); border: 0.5px solid var(--border); }
+.badge-info  { background: var(--blue-bg);  color: var(--blue);  border: 0.5px solid var(--blue-bd); }
+.dot8 { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+/* CARDS */
+.card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.surface { background: var(--bg3); border-radius: 7px; padding: 11px 13px; }
+.sec-label { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; font-family: 'IBM Plex Mono', monospace; }
+.divider { border: none; border-top: 0.5px solid var(--border); margin: 14px 0; }
+
+/* LAYOUT */
+.row { margin-bottom: 14px; }
+.col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* PILLS */
+.pills { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+.pill { background: var(--bg3); border-radius: 6px; padding: 6px 10px; text-align: center; flex: 1; min-width: 56px; border: 0.5px solid var(--border); }
+.pill-label { font-size: 9px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; }
+.pill-val { font-size: 12px; font-weight: 500; margin-top: 2px; }
+.c-green { color: var(--green); }
+.c-amber { color: var(--amber); }
+.c-red   { color: var(--red); }
+.c-muted { color: var(--text2); }
+
+/* HINT */
+.hint { font-size: 11px; color: var(--text3); line-height: 1.5; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); font-family: 'IBM Plex Mono', monospace; }
+
+/* TOOLTIP */
+.tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
+.tooltip-icon { width: 15px; height: 15px; border-radius: 50%; background: var(--bg3); border: 0.5px solid var(--border2); font-size: 9px; font-weight: 500; color: var(--text3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin-left: 6px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; }
+.tooltip-box { display: none; position: absolute; left: 22px; top: -8px; width: 260px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 10px; padding: 13px; font-size: 12px; color: var(--text); line-height: 1.6; z-index: 100; }
+.tooltip-wrap:hover .tooltip-box { display: block; }
+.ir-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+.ir-table td { padding: 4px 0; border-bottom: 0.5px solid var(--border); color: var(--text2); }
+.ir-table tr:last-child td { border: none; }
+.ir-table td:last-child { text-align: right; font-weight: 500; color: var(--text); }
+
+/* PVP BAR */
+.pvp-track { height: 4px; background: var(--bg4); border-radius: 2px; position: relative; margin-top: 8px; }
+.pvp-marker { width: 2px; height: 12px; background: var(--text2); position: absolute; top: -4px; border-radius: 1px; }
+
+/* WAFFLE */
+.waffle-col { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
+.waffle-dot { width: 18px; height: 18px; border-radius: 3px; cursor: pointer; transition: opacity .15s; }
+.waffle-dot:hover { opacity: .65; }
+.waffle-label { font-size: 8px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; white-space: nowrap; transform: rotate(-45deg); transform-origin: top center; margin-top: 6px; height: 18px; }
+.wtip { display: none; position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 6px; padding: 5px 9px; font-size: 11px; color: var(--text); white-space: nowrap; z-index: 10; pointer-events: none; font-family: 'IBM Plex Mono', monospace; }
+.waffle-col:hover .wtip { display: block; }
+
+/* SIMULATOR GRID */
+.sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* CONSTRUCTION PLACEHOLDER */
+.wip { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 28px 16px; background: var(--bg3); border: 0.5px dashed var(--border2); border-radius: 8px; }
+.wip-label { font-size: 11px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; letter-spacing: .06em; }
+.wip-icon { font-size: 20px; opacity: .4; }
+
+/* ALERT INLINE */
+.alert-warn { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 6px 10px; border-radius: 6px; margin-top: 10px; background: var(--amber-bg); color: var(--amber); border: 0.5px solid var(--amber-bd); font-family: 'IBM Plex Mono', monospace; }
+
+.theme-btn { background: var(--bg3); border: 0.5px solid var(--border2); color: var(--text2); font-family: 'IBM Plex Mono', monospace; font-size: 11px; padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: background .2s, color .2s; }
+.theme-btn:hover { background: var(--bg4); color: var(--text); }
+@media (max-width: 600px) {
+  .col2 { grid-template-columns: 1fr; }
+  .sim-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <a class="logo" href="#">
+    <div class="logo-icon">GF</div>
+    <div class="logo-name">Guia<span> FII</span></div>
+  </a>
+  <div class="topbar-right">
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀ tema claro</button>
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div class="search-section">
+  <div class="search-wrap">
+    <div class="search-row">
+      <span class="search-icon"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+      <input id="search-input" class="search-input" type="text" placeholder="Buscar fundo... ex: MXRF11, KNCR11, XPML11" />
+    </div>
+    <div class="search-hint">digite o ticker e pressione Enter</div>
+    <div id="search-error" style="display:none;font-size:11px;color:var(--red);font-family:'IBM Plex Mono',monospace;margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content" id="content-area">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="ticker-block">
+    <div class="ticker" id="f-ticker"></div>
+    <div>
+      <div class="fund-name">
+        <span id="f-nome"></span>
+        <span id="f-risco"></span>
+      </div>
+      <div class="fund-sub" id="f-segmento"></div>
+    </div>
+  </div>
+  <div>
+    <div class="health-wrap">
+      <span style="font-size:11px;color:var(--text2)">saúde</span>
+      <span id="f-saude"></span>
+      <div class="tooltip-wrap">
+        <div class="tooltip-icon">?</div>
+        <div class="tooltip-box">
+          <div style="font-weight:500;margin-bottom:8px">como avaliamos a saúde</div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Baseado em dados públicos. Não é recomendação de compra ou venda.</div>
+          <div style="display:flex;gap:8px;margin-top:6px"><span class="dot8" style="background:var(--green);margin-top:3px;flex-shrink:0"></span><span><strong>boa</strong> — dividendos estáveis, vacância baixa, sem alertas</span></div>
+          <div style="display:flex;gap:8px;margin-top:6px"><span class="dot8" style="background:var(--amber);margin-top:3px;flex-shrink:0"></span><span><strong>atenção</strong> — algum sinal de queda — vale investigar</span></div>
+          <div style="display:flex;gap:8px;margin-top:6px"><span class="dot8" style="background:var(--red);margin-top:3px;flex-shrink:0"></span><span><strong>alerta</strong> — múltiplos sinais negativos detectados</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px">
+      <div class="updated" id="f-updated"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ROW 1: PRICE + P/VP -->
+<div class="card row">
+  <div class="sec-label">preço</div>
+  <div style="display:flex;align-items:baseline;gap:10px">
+    <span style="font-size:30px;font-weight:600" id="f-preco"></span>
+    <span class="mono" style="font-size:11px;color:var(--text3)" id="f-preco-data"></span>
+  </div>
+  <div class="pills">
+    <div class="pill" id="f-pill-d1"></div>
+    <div class="pill" id="f-pill-d7"></div>
+    <div class="pill" id="f-pill-d30"></div>
+    <div class="pill" id="f-pill-d90"></div>
+    <div class="pill" id="f-pill-d180"></div>
+    <div class="pill" id="f-pill-12m"></div>
+  </div>
+  <hr class="divider">
+  <div style="display:flex;align-items:center;margin-bottom:8px">
+    <div class="sec-label" style="margin-bottom:0">P/VP</div>
+    <div class="tooltip-wrap">
+      <div class="tooltip-icon">?</div>
+      <div class="tooltip-box">Preço dividido pelo valor patrimonial da cota. Abaixo de 1,0 = comprando com desconto. Analise com a saúde: desconto em fundo saudável pode ser oportunidade; em fundo com alerta pode ser merecido.</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="font-size:22px;font-weight:600" id="f-pvp"></div>
+    <div style="font-size:12px;color:var(--text2)" id="f-pvp-desc"></div>
+  </div>
+  <div class="pvp-track" style="margin-top:10px">
+    <div id="f-pvp-fill" style="height:100%;width:32%;background:var(--blue);border-radius:2px"></div>
+    <div class="pvp-marker" style="left:50%"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:4px;font-family:'IBM Plex Mono',monospace">
+    <span>0,70 — desconto</span><span style="color:var(--text2);font-weight:500">1,00 = justo</span><span>1,30 — prêmio</span>
+  </div>
+</div>
+
+<!-- ROW 2: VOLATILITY + LIQUIDITY -->
+<div class="col2 row">
+  <div class="card">
+    <div style="display:flex;align-items:center">
+      <div class="sec-label" style="margin-bottom:0">índice de volatilidade</div>
+      <div class="tooltip-wrap">
+        <div class="tooltip-icon">?</div>
+        <div class="tooltip-box">Desvio padrão dos retornos diários × √252. Baixo &lt;15% · Médio 15–25% · Alto &gt;25%</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;margin-bottom:10px">
+      <span style="font-size:22px;font-weight:600" id="f-vol-val"></span>
+      <span id="f-vol-badge"></span>
+    </div>
+    <div class="pills">
+      <div class="pill" id="f-pill-vol-7d"></div>
+      <div class="pill" id="f-pill-vol-30d"></div>
+      <div class="pill" id="f-pill-vol-90d"></div>
+      <div class="pill" id="f-pill-vol-12m"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center">
+      <div class="sec-label" style="margin-bottom:0">liquidez — qtd. de transações</div>
+      <div class="tooltip-wrap">
+        <div class="tooltip-icon">?</div>
+        <div class="tooltip-box">Número de negócios por dia. Baixo &lt;5k · Médio 5k–20k · Alto &gt;20k</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;margin-bottom:10px">
+      <span style="font-size:22px;font-weight:600" id="f-liq-val"></span>
+      <span id="f-liq-badge"></span>
+    </div>
+    <div class="pills">
+      <div class="pill" id="f-pill-liq-7d"></div>
+      <div class="pill" id="f-pill-liq-30d"></div>
+      <div class="pill" id="f-pill-liq-90d"></div>
+      <div class="pill" id="f-pill-liq-12m"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ROW 3: DIVIDEND CONSISTENCY + DY -->
+<div class="col2 row">
+  <div class="card">
+    <div class="sec-label">consistência de dividendos — 13 meses</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:6px">último dividendo</div>
+    <div style="display:flex;align-items:baseline;gap:8px">
+      <span style="font-size:22px;font-weight:600" id="f-div-valor"></span>
+      <span class="mono" style="font-size:11px;color:var(--text2)" id="f-div-pago"></span>
+    </div>
+    <div class="mono" style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:14px" id="f-div-base"></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <span style="font-size:13px;font-weight:500" id="f-div-streak"></span>
+      <span id="f-div-badge"></span>
+    </div>
+    <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
+    <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2);flex-wrap:wrap;font-family:'IBM Plex Mono',monospace">
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#4a9eff"></div>igual</span>
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#00d68f"></div>maior</span>
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623"></div>menor</span>
+      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252"></div>não pagou</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-label">DY anualizado</div>
+    <div style="font-size:26px;font-weight:600" id="f-dy-anual"></div>
+    <div class="mono" style="font-size:11px;color:var(--text2);margin-top:4px">baseado nos últimos 12 meses</div>
+    <div class="pills">
+      <div class="pill" id="f-pill-dy-m1"></div>
+      <div class="pill" id="f-pill-dy-m3"></div>
+      <div class="pill" id="f-pill-dy-m12"></div>
+      <div class="pill" id="f-pill-dy-yoy"></div>
+    </div>
+    <div class="hint">DY mensal acima de 0,80% é considerado razoável para FIIs de tijolo em 2026.</div>
+  </div>
+</div>
+
+<!-- ROW 4: SIMULATOR + SUMMARY -->
+<div class="col2 row">
+  <div class="card">
+    <div class="sec-label" style="margin-bottom:14px">simulador — R$ 10.000 investidos hoje</div>
+    <div class="sim-grid">
+      <div class="surface">
+        <div style="font-size:10px;color:var(--text3)">cotas compradas</div>
+        <div style="font-size:20px;font-weight:600;margin-top:5px" id="f-sim-cotas"></div>
+        <div class="mono" style="font-size:10px;color:var(--text3)" id="f-sim-preco"></div>
+      </div>
+      <div class="surface">
+        <div style="font-size:10px;color:var(--text3)">renda mensal</div>
+        <div style="font-size:20px;font-weight:600;color:var(--green);margin-top:5px" id="f-sim-mensal"></div>
+        <div class="mono" style="font-size:10px;color:var(--text3)">isento de IR</div>
+      </div>
+      <div class="surface">
+        <div style="font-size:10px;color:var(--text3)">renda anual</div>
+        <div style="font-size:20px;font-weight:600;margin-top:5px" id="f-sim-anual"></div>
+        <div class="mono" style="font-size:10px;color:var(--text3)">isento de IR para PF</div>
+      </div>
+      <div class="surface">
+        <div style="display:flex;align-items:center;gap:3px">
+          <div style="font-size:10px;color:var(--text3)">equiv. renda fixa 12M</div>
+          <div class="tooltip-wrap">
+            <div class="tooltip-icon">?</div>
+            <div class="tooltip-box">
+              <div style="font-weight:500;margin-bottom:6px">o que é gross-up?</div>
+              <div id="f-grossup-tip" style="font-size:11px;color:var(--text2);margin-bottom:8px"></div>
+              <div style="font-size:11px;font-weight:500;margin-bottom:4px">alíquotas IR — renda fixa:</div>
+              <table class="ir-table">
+                <tr><td>até 180 dias</td><td>22,5%</td></tr>
+                <tr><td>181 a 360 dias</td><td>20,0%</td></tr>
+                <tr><td>361 a 720 dias</td><td>17,5%</td></tr>
+                <tr><td>acima de 720 dias</td><td>15,0%</td></tr>
+              </table>
+              <div style="font-size:11px;color:var(--text2);margin-top:8px">Aqui usamos 20% (181–360 dias), prazo mais comum para comparação anual.</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:20px;font-weight:600;margin-top:5px" id="f-sim-grossup"></div>
+        <div class="mono" style="font-size:10px;color:var(--text3)">gross-up 20% · 181–360d</div>
+      </div>
+    </div>
+    <div class="hint">simulação pelo último dividendo. rendimentos passados não garantem resultados futuros.</div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div class="sec-label" style="margin-bottom:0">resumo do gestor</div>
+      <span class="badge badge-info" style="font-size:10px">IA</span>
+      <span class="badge badge-neu" style="font-size:10px">em construção</span>
+    </div>
+    <div id="f-gestor-content"></div>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<script>
+const API_BASE = 'https://fii-prices.up.railway.app'
+const CDI_MENSAL = 0.0087  // atualizar mensalmente até ter endpoint próprio
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+const fmtPct  = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
+const fmtPctAbs = v => (v * 100).toFixed(1) + '%'
+const fmtBRL  = v => 'R$ ' + v.toFixed(2).replace('.', ',')
+const fmtK    = v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v.toString()
+const fmtDate = s => s
+
+function pctColor(v) {
+  if (v > 0.001) return 'c-green'
+  if (v < -0.001) return 'c-red'
+  return 'c-muted'
+}
+
+function volBadge(v) {
+  if (v < 0.15) return ['badge-ok', 'baixa']
+  if (v < 0.25) return ['badge-warn', 'média']
+  return ['badge-bad', 'alta']
+}
+
+function liqBadge(v) {
+  if (v > 20000) return ['badge-ok', 'alta']
+  if (v > 5000)  return ['badge-warn', 'média']
+  return ['badge-bad', 'baixa']
+}
+
+function saludeBadge(s) {
+  if (s === 'boa')     return ['badge-ok',  'var(--green)', 'boa']
+  if (s === 'atencao') return ['badge-warn','var(--amber)', 'atenção']
+  return                      ['badge-bad', 'var(--red)',   'alerta']
+}
+
+function riscoBadge(r) {
+  if (r === 'baixo') return ['badge-ok',  'var(--green)', 'risco baixo']
+  if (r === 'medio') return ['badge-warn','var(--amber)', 'risco médio']
+  return                    ['badge-bad', 'var(--red)',   'risco alto']
+}
+
+function waffleColor(cur, prev) {
+  if (cur === null) return '#f05252'
+  if (prev === null || cur > prev) return '#00d68f'
+  if (cur < prev) return '#f5a623'
+  return '#4a9eff'
+}
+
+function set(id, html) {
+  const el = document.getElementById(id)
+  if (el) el.innerHTML = html
+}
+
+function setText(id, txt) {
+  const el = document.getElementById(id)
+  if (el) el.textContent = txt
+}
+
+function setClass(id, cls) {
+  const el = document.getElementById(id)
+  if (el) { el.className = el.className.replace(/badge-\S+/, ''); el.classList.add(cls) }
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
+function render(f) {
+  document.title = f.ticker + ' — Guia FII'
+
+  // Identity
+  setText('f-ticker',   f.ticker)
+  setText('f-nome',     f.nome)
+  setText('f-segmento', f.segmento)
+  setText('f-updated',  f.atualizado)
+
+  const [rCls, rClr, rTxt] = riscoBadge(f.risco)
+  set('f-risco', `<span class="badge ${rCls}"><span class="dot8" style="background:${rClr}"></span>${rTxt}</span>`)
+
+  const [sCls, sClr, sTxt] = saludeBadge(f.saude)
+  set('f-saude', `<span class="badge ${sCls}"><span class="dot8" style="background:${sClr}"></span>${sTxt}</span>`)
+
+  // Preço
+  setText('f-preco',      'R$ ' + f.preco.toFixed(2).replace('.', ','))
+  setText('f-preco-data', f.preco_data)
+  set('f-pill-d1',   `<div class="pill-label">D-1</div><div class="pill-val ${pctColor(f.preco_d1)}">${fmtPct(f.preco_d1)}</div>`)
+  set('f-pill-d7',   `<div class="pill-label">D-7</div><div class="pill-val ${pctColor(f.preco_d7)}">${fmtPct(f.preco_d7)}</div>`)
+  set('f-pill-d30',  `<div class="pill-label">D-30</div><div class="pill-val ${pctColor(f.preco_d30)}">${fmtPct(f.preco_d30)}</div>`)
+  set('f-pill-d90',  `<div class="pill-label">D-90</div><div class="pill-val ${pctColor(f.preco_d90)}">${fmtPct(f.preco_d90)}</div>`)
+  set('f-pill-d180', `<div class="pill-label">D-180</div><div class="pill-val ${pctColor(f.preco_d180)}">${fmtPct(f.preco_d180)}</div>`)
+  set('f-pill-12m',  `<div class="pill-label">12M</div><div class="pill-val ${pctColor(f.preco_12m)}">${fmtPct(f.preco_12m)}</div>`)
+
+  // P/VP
+  const pvpDiscount = ((1 - f.pvp) * 100).toFixed(0)
+  setText('f-pvp', f.pvp.toFixed(2))
+  setText('f-pvp-desc', (f.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(pvpDiscount)}%`) + ' sobre o valor patrimonial')
+  document.getElementById('f-pvp-fill').style.width = ((f.pvp - 0.70) / (1.30 - 0.70) * 100).toFixed(1) + '%'
+
+  // Volatilidade
+  const [vCls, vTxt] = volBadge(f.vol_90d)
+  setText('f-vol-val', fmtPctAbs(f.vol_90d))
+  set('f-vol-badge', `<span class="badge ${vCls}">${vTxt}</span>`)
+  set('f-pill-vol-7d',  `<div class="pill-label">7d</div><div class="pill-val c-muted">${fmtPctAbs(f.vol_7d)}</div>`)
+  set('f-pill-vol-30d', `<div class="pill-label">30d</div><div class="pill-val c-muted">${fmtPctAbs(f.vol_30d)}</div>`)
+  set('f-pill-vol-90d', `<div class="pill-label">90d</div><div class="pill-val c-muted">${fmtPctAbs(f.vol_90d)}</div>`)
+  set('f-pill-vol-12m', `<div class="pill-label">12M</div><div class="pill-val ${volBadge(f.vol_12m)[0]==='badge-ok'?'c-muted':'c-amber'}">${fmtPctAbs(f.vol_12m)}</div>`)
+
+  // Liquidez
+  const [lCls, lTxt] = liqBadge(f.liq_30d)
+  setText('f-liq-val', fmtK(f.liq_30d))
+  set('f-liq-badge', `<span class="badge ${lCls}">${lTxt}</span>`)
+  set('f-pill-liq-7d',  `<div class="pill-label">7d</div><div class="pill-val c-muted">${fmtK(f.liq_7d)}</div>`)
+  set('f-pill-liq-30d', `<div class="pill-label">30d</div><div class="pill-val c-muted">${fmtK(f.liq_30d)}</div>`)
+  set('f-pill-liq-90d', `<div class="pill-label">90d</div><div class="pill-val c-muted">${fmtK(f.liq_90d)}</div>`)
+  set('f-pill-liq-12m', `<div class="pill-label">12M</div><div class="pill-val c-muted">${fmtK(f.liq_12m)}</div>`)
+
+  // Dividendos
+  setText('f-div-valor',  fmtBRL(f.div_valor))
+  setText('f-div-pago',   'pago em ' + f.div_pago_em)
+  setText('f-div-base',   'data-base: ' + f.div_base)
+  setText('f-div-streak', `pagou ${f.div_pagos} de ${f.div_total} meses`)
+  const pct = Math.round(f.div_pagos / f.div_total * 100)
+  set('f-div-badge', `<span class="badge badge-ok">${pct}%</span>`)
+
+  // Waffle
+  const waffle = document.getElementById('waffle')
+  waffle.innerHTML = ''
+  f.div_historico.forEach((d, i) => {
+    const prev = i > 0 ? f.div_historico[i-1].v : d.v
+    const col = document.createElement('div')
+    col.className = 'waffle-col'
+    const tip = document.createElement('div')
+    tip.className = 'wtip'
+    tip.textContent = d.v !== null ? fmtBRL(d.v) : 'não pagou'
+    const dot = document.createElement('div')
+    dot.className = 'waffle-dot'
+    dot.style.background = waffleColor(d.v, prev)
+    const lbl = document.createElement('div')
+    lbl.className = 'waffle-label'
+    lbl.textContent = d.m
+    col.appendChild(tip); col.appendChild(dot); col.appendChild(lbl)
+    waffle.appendChild(col)
+  })
+
+  // DY
+  setText('f-dy-anual', fmtPctAbs(f.dy_anual))
+  set('f-pill-dy-m1',  `<div class="pill-label">M-1</div><div class="pill-val c-muted">${fmtPctAbs(f.dy_m1)}</div>`)
+  set('f-pill-dy-m3',  `<div class="pill-label">M-3 méd.</div><div class="pill-val ${f.dy_m3 < f.dy_m1 ? 'c-amber':'c-muted'}">${fmtPctAbs(f.dy_m3)}</div>`)
+  set('f-pill-dy-m12', `<div class="pill-label">M-12 méd.</div><div class="pill-val c-muted">${fmtPctAbs(f.dy_m12)}</div>`)
+  set('f-pill-dy-yoy', `<div class="pill-label">YoY</div><div class="pill-val ${pctColor(f.dy_yoy)}">${fmtPct(f.dy_yoy)}</div>`)
+
+  // Simulador
+  const cotas   = Math.floor(f.sim_investimento / f.preco)
+  const mensal  = Math.round(cotas * f.div_valor)
+  const anual   = mensal * 12
+  const grossup = (f.dy_anual / (1 - 0.20) / f.cdi_mensal / 12 * 100).toFixed(0)
+  setText('f-sim-cotas',  cotas.toLocaleString('pt-BR'))
+  setText('f-sim-preco',  'a ' + fmtBRL(f.preco))
+  setText('f-sim-mensal', 'R$ ' + mensal.toLocaleString('pt-BR'))
+  setText('f-sim-anual',  'R$ ' + anual.toLocaleString('pt-BR'))
+  setText('f-sim-grossup',grossup + '% CDI')
+  // update gross-up tooltip with actual annual amount
+  const gtip = document.getElementById('f-grossup-tip')
+  if (gtip) gtip.textContent = `Quanto precisaria render uma aplicação tributada (CDB, Tesouro) para entregar os mesmos R$ ${anual.toLocaleString('pt-BR')} líquidos que este FII entrega isento de IR no ano.`
+
+  // Gestor IA
+  const gestorCard = document.getElementById('f-gestor-content')
+  if (gestorCard) {
+    if (f.gestor_resumo) {
+      gestorCard.innerHTML = `
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;font-family:'IBM Plex Mono',monospace">tom detectado: ${f.gestor_tom}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6">${f.gestor_resumo}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:10px;font-family:'IBM Plex Mono',monospace">relatório gerencial ${f.gestor_mes} · processado ${f.atualizado}</div>`
+    } else {
+      gestorCard.innerHTML = `
+        <div class="wip">
+          <div class="wip-icon">⚙</div>
+          <div class="wip-label">pipeline de leitura dos relatórios gerenciais em construção</div>
+          <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">disponível após processamento dos PDFs via IA</div>
+        </div>`
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// THEME
+// ─────────────────────────────────────────────
+function toggleTheme() {
+  document.documentElement.classList.toggle('light')
+  const isLight = document.documentElement.classList.contains('light')
+  document.getElementById('themeBtn').textContent = isLight ? '☾ tema escuro' : '☀ tema claro'
+}
+
+// ─────────────────────────────────────────────
+// LOADING STATE
+// ─────────────────────────────────────────────
+function showLoading() {
+  document.getElementById('content-area').style.opacity = '0.4'
+  document.getElementById('content-area').style.pointerEvents = 'none'
+}
+
+function hideLoading() {
+  document.getElementById('content-area').style.opacity = '1'
+  document.getElementById('content-area').style.pointerEvents = ''
+}
+
+function showError(msg) {
+  const el = document.getElementById('search-error')
+  if (el) { el.textContent = msg; el.style.display = 'block' }
+}
+
+function clearError() {
+  const el = document.getElementById('search-error')
+  if (el) { el.textContent = ''; el.style.display = 'none' }
+}
+
+// ─────────────────────────────────────────────
+// API
+// ─────────────────────────────────────────────
+async function loadFund(ticker) {
+  ticker = ticker.trim().toUpperCase()
+  if (!ticker) return
+  clearError()
+  showLoading()
+
+  try {
+    const [precoRes, divRes] = await Promise.all([
+      fetch(`${API_BASE}/fundo/preco?ticker=${ticker}`),
+      fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`)
+    ])
+
+    if (!precoRes.ok) {
+      const err = await precoRes.json().catch(() => ({}))
+      throw new Error(err.detail || `Fundo ${ticker} não encontrado`)
+    }
+    if (!divRes.ok) {
+      const err = await divRes.json().catch(() => ({}))
+      throw new Error(err.detail || `Dividendos para ${ticker} não encontrados`)
+    }
+
+    const preco = await precoRes.json()
+    const div   = await divRes.json()
+
+    // map API response → FUND object used by render()
+    const v = preco.variacao
+    const vol = preco.volatilidade
+    const liq = preco.liquidez
+    const hoje = new Date().toLocaleDateString('pt-BR')
+
+    const f = {
+      ticker,
+      nome:        ticker,          // nome real não está no COTAHIST ainda
+      segmento:    '—',             // virá do informe mensal
+      risco:       'medio',         // virá do informe mensal
+      saude:       calcSaude(div, vol),
+      atualizado:  hoje,
+
+      preco:       preco.preco,
+      preco_data:  formatDate(preco.preco_data),
+      preco_d1:    v.d1   ?? 0,
+      preco_d7:    v.d7   ?? 0,
+      preco_d30:   v.d30  ?? 0,
+      preco_d90:   v.d90  ?? 0,
+      preco_d180:  v.d180 ?? 0,
+      preco_12m:   v['12m'] ?? 0,
+
+      pvp:         null,            // virá do informe mensal
+
+      vol_7d:      vol['7d']  ?? 0,
+      vol_30d:     vol['30d'] ?? 0,
+      vol_90d:     vol['90d'] ?? 0,
+      vol_12m:     vol['12m'] ?? 0,
+
+      liq_7d:      liq['7d']  ?? 0,
+      liq_30d:     liq['30d'] ?? 0,
+      liq_90d:     liq['90d'] ?? 0,
+      liq_12m:     liq['12m'] ?? 0,
+
+      div_valor:   div.ultimo.valor,
+      div_pago_em: div.ultimo.data_pago  || '—',
+      div_base:    div.ultimo.data_base  || '—',
+      div_pagos:   div.consistencia.pagos,
+      div_total:   div.consistencia.total,
+
+      div_historico: div.historico.map(d => ({
+        m: fmtMes(d.data_base),
+        v: d.valor_provento
+      })),
+
+      dy_anual:    div.dy.anual  ?? 0,
+      dy_m1:       div.dy.m1    ?? 0,
+      dy_m3:       div.dy.m3    ?? 0,
+      dy_m12:      div.dy.m12   ?? 0,
+      dy_yoy:      div.dy.yoy   ?? 0,
+
+      sim_investimento: 10000,
+      cdi_mensal:       CDI_MENSAL,
+
+      gestor_resumo: null,
+      gestor_tom:    null,
+      gestor_mes:    null,
+    }
+
+    render(f)
+
+    // update URL so it's bookmarkable
+    history.pushState({}, '', `?ticker=${ticker}`)
+    document.getElementById('search-input').value = ticker
+
+  } catch(e) {
+    showError(e.message)
+  } finally {
+    hideLoading()
+  }
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function formatDate(s) {
+  if (!s) return '—'
+  // YYYY-MM-DD → DD/MM/YYYY
+  const parts = s.split('-')
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`
+  return s
+}
+
+function fmtMes(s) {
+  if (!s) return '—'
+  const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
+  const parts = s.split('-')
+  if (parts.length >= 2) return `${months[parseInt(parts[1])-1]}/${parts[0].slice(2)}`
+  return s
+}
+
+function calcSaude(div, vol) {
+  // simple heuristic — will be improved later
+  const volHigh = (vol['90d'] ?? 0) > 0.25
+  const divFalling = div.dy.yoy !== null && div.dy.yoy < -0.05
+  const lowConsistency = div.consistencia.pct < 0.8
+  if (volHigh || lowConsistency) return 'alerta'
+  if (divFalling) return 'atencao'
+  return 'boa'
+}
+
+// ─────────────────────────────────────────────
+// SEARCH
+// ─────────────────────────────────────────────
+function setupSearch() {
+  const input = document.getElementById('search-input')
+  if (!input) return
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      loadFund(input.value)
+    }
+  })
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+setupSearch()
+
+// load from URL param if present, else default to MXRF11
+const params = new URLSearchParams(window.location.search)
+const initialTicker = params.get('ticker') || 'MXRF11'
+loadFund(initialTicker)
+</script>
+</body>
+</html>
