@@ -461,6 +461,16 @@ function render(f) {
   setText('f-segmento', f.segmento)
   setText('f-updated',  f.atualizado)
 
+  // Sub-line: administrador · cotistas
+  const subParts = []
+  if (f.administrador) subParts.push(fmtNome(f.administrador))
+  if (f.cotistas)      subParts.push(f.cotistas.toLocaleString('pt-BR') + ' cotistas')
+  if (f.competencia)   subParts.push('ref. ' + fmtMes(f.competencia))
+  const subEl = document.getElementById('f-segmento')
+  if (subEl && subParts.length) {
+    subEl.innerHTML = `${f.segmento}<br><span style="font-size:10px;color:var(--text3)">${subParts.join(' · ')}</span>`
+  }
+
   const [rCls, rClr, rTxt] = riscoBadge(f.risco)
   set('f-risco', `<span class="badge ${rCls}"><span class="dot8" style="background:${rClr}"></span>${rTxt}</span>`)
 
@@ -619,9 +629,10 @@ async function loadFund(ticker) {
   showLoading()
 
   try {
-    const [precoRes, divRes] = await Promise.all([
+    const [precoRes, divRes, informeRes] = await Promise.all([
       fetch(`${API_BASE}/fundo/preco?ticker=${ticker}`),
-      fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`)
+      fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`),
+      fetch(`${API_BASE}/fundo/informe?ticker=${ticker}`)
     ])
 
     if (!precoRes.ok) {
@@ -633,22 +644,36 @@ async function loadFund(ticker) {
       throw new Error(err.detail || `Dividendos para ${ticker} não encontrados`)
     }
 
-    const preco = await precoRes.json()
-    const div   = await divRes.json()
+    const preco   = await precoRes.json()
+    const div     = await divRes.json()
+    const informe = informeRes.ok ? await informeRes.json() : null
 
     // map API response → FUND object used by render()
-    const v = preco.variacao
+    const v   = preco.variacao
     const vol = preco.volatilidade
     const liq = preco.liquidez
     const hoje = new Date().toLocaleDateString('pt-BR')
 
+    // P/VP — price / NAV per share from informe mensal
+    const pvp = (informe && informe.nav_cota && preco.preco)
+      ? preco.preco / informe.nav_cota
+      : null
+
+    // segmento — classificacao · subclassificacao
+    const segmento = informe
+      ? [informe.classificacao, informe.subclassificacao].filter(Boolean).join(' · ')
+      : '—'
+
     const f = {
       ticker,
-      nome:        ticker,          // nome real não está no COTAHIST ainda
-      segmento:    '—',             // virá do informe mensal
-      risco:       'medio',         // virá do informe mensal
-      saude:       calcSaude(div, vol),
-      atualizado:  hoje,
+      nome:        informe ? fmtNome(informe.nome) : ticker,
+      segmento,
+      administrador: informe ? informe.administrador : null,
+      cotistas:      informe ? informe.cotistas : null,
+      competencia:   informe ? informe.competencia : null,
+      risco:         'medio',
+      saude:         calcSaude(div, vol),
+      atualizado:    hoje,
 
       preco:       preco.preco,
       preco_data:  formatDate(preco.preco_data),
@@ -659,7 +684,7 @@ async function loadFund(ticker) {
       preco_d180:  v.d180 ?? 0,
       preco_12m:   v['12m'] ?? 0,
 
-      pvp:         null,            // virá do informe mensal
+      pvp,
 
       vol_7d:      vol['7d']  ?? 0,
       vol_30d:     vol['30d'] ?? 0,
@@ -712,6 +737,12 @@ async function loadFund(ticker) {
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
+function fmtNome(s) {
+  if (!s) return '—'
+  // Convert "FII MAXI RENDA RL" → "FII Maxi Renda RL"
+  return s.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+}
+
 function formatDate(s) {
   if (!s) return '—'
   // YYYY-MM-DD → DD/MM/YYYY
