@@ -549,3 +549,56 @@ def get_benchmarks(request: Request):
         "benchmarks":   _benchmarks_cache["data"],
         "calculado_em": datetime.fromtimestamp(_benchmarks_cache["ts"]).strftime("%Y-%m-%d %H:%M"),
     }
+
+
+# ---------------------------------------------------------------------------
+# CDI cache — refreshed once per day
+# ---------------------------------------------------------------------------
+_cdi_cache: dict = {"data": None, "ts": 0}
+
+@app.get("/cdi")
+@limiter.limit("30/minute")
+def get_cdi(request: Request):
+    """
+    Returns the current CDI rate fetched from the Brazilian Central Bank API.
+    Cached for 24 hours.
+    Series 4391 = CDI daily rate (% a.d.)
+    """
+    import time as _time
+    import urllib.request as _req
+    import json as _json
+
+    now = _time.time()
+    if _cdi_cache["data"] is not None and now - _cdi_cache["ts"] < 86400:
+        return _cdi_cache["data"]
+
+    try:
+        url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4391/dados/ultimos/1?formato=json"
+        with _req.urlopen(url, timeout=10) as resp:
+            rows = _json.loads(resp.read())
+
+        # BCB returns daily CDI rate as % a.d. e.g. "0.05171"
+        cdi_diario_pct = float(rows[0]["valor"])
+        data_ref       = rows[0]["data"]  # DD/MM/YYYY
+
+        # Convert to monthly and annual (compound)
+        cdi_mensal = (1 + cdi_diario_pct / 100) ** 21 - 1   # ~21 trading days/month
+        cdi_anual  = (1 + cdi_diario_pct / 100) ** 252 - 1  # 252 trading days/year
+
+        result = {
+            "cdi_diario":  round(cdi_diario_pct / 100, 8),
+            "cdi_mensal":  round(cdi_mensal, 6),
+            "cdi_anual":   round(cdi_anual, 6),
+            "data_ref":    data_ref,
+            "fonte":       "Banco Central do Brasil — série 4391",
+        }
+        _cdi_cache["data"] = result
+        _cdi_cache["ts"]   = now
+        return result
+
+    except Exception as e:
+        # Return cache if available, even if stale
+        if _cdi_cache["data"] is not None:
+            return {**_cdi_cache["data"], "aviso": "usando cache — BCB indisponível"}
+        raise HTTPException(status_code=503, detail=f"BCB API unavailable: {str(e)}")
+
