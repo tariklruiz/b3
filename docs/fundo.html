@@ -188,6 +188,25 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
       <div class="fund-name">
         <span id="f-nome"></span>
         <span id="f-risco"></span>
+        <div class="tooltip-wrap">
+          <div class="tooltip-icon">?</div>
+          <div class="tooltip-box" style="width:290px">
+            <div style="font-weight:500;margin-bottom:8px">como calculamos o risco</div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:10px">8 sinais, cada um pontuado 0–2. Total 0–3 = baixo · 4–7 = médio · 8+ = alto.</div>
+            <table style="width:100%;border-collapse:collapse;font-size:10px;font-family:'IBM Plex Mono',monospace">
+              <tr style="color:var(--text3)"><td style="padding:3px 0;border-bottom:0.5px solid var(--border)">Sinal</td><td style="padding:3px 0;border-bottom:0.5px solid var(--border);text-align:right">Médio</td><td style="padding:3px 0;border-bottom:0.5px solid var(--border);text-align:right">Alto</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Volatilidade 90d</td><td style="padding:3px 0;text-align:right">&gt;15%</td><td style="padding:3px 0;text-align:right">&gt;25%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Consistência div.</td><td style="padding:3px 0;text-align:right">&lt;100%</td><td style="padding:3px 0;text-align:right">&lt;85%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Dividendo YoY</td><td style="padding:3px 0;text-align:right">&lt;-3%</td><td style="padding:3px 0;text-align:right">&lt;-10%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Liquidez 30d</td><td style="padding:3px 0;text-align:right">&lt;20k</td><td style="padding:3px 0;text-align:right">&lt;5k</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Preço D-30</td><td style="padding:3px 0;text-align:right">&lt;-7%</td><td style="padding:3px 0;text-align:right">&lt;-11%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Preço D-180</td><td style="padding:3px 0;text-align:right">&lt;-8%</td><td style="padding:3px 0;text-align:right">&lt;-12%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Preço 12M</td><td style="padding:3px 0;text-align:right">&lt;-9%</td><td style="padding:3px 0;text-align:right">&lt;-13%</td></tr>
+              <tr><td style="padding:3px 0;color:var(--text2)">Preço 24M</td><td style="padding:3px 0;text-align:right">&lt;-10%</td><td style="padding:3px 0;text-align:right">&lt;-14%</td></tr>
+            </table>
+            <div style="font-size:10px;color:var(--text3);margin-top:8px">Vacância e risco de default serão adicionados em breve.</div>
+          </div>
+        </div>
       </div>
       <div class="fund-sub" id="f-segmento"></div>
     </div>
@@ -705,6 +724,16 @@ async function loadFund(ticker) {
       ? [informe.classificacao, informe.subclassificacao].filter(Boolean).join(' · ')
       : '—'
 
+    // Dividend value YoY: last payment vs first in the 13-month window
+    const hist = div.historico
+    if (hist.length >= 2) {
+      const last  = hist[hist.length - 1].valor_provento
+      const first = hist[0].valor_provento
+      div._yoy_valor = (first > 0) ? (last - first) / first : 0
+    } else {
+      div._yoy_valor = 0
+    }
+
     // attach nav_cota to preco object for P/VP calculation
     if (informe && informe.nav_cota) preco._nav_cota = informe.nav_cota
 
@@ -821,10 +850,10 @@ function calcRisco(div, vol, preco) {
   if      (consistency < 0.85) score += 2
   else if (consistency < 1.00) score += 1
 
-  // 3. DY YoY trend
-  const yoy = div.dy.yoy ?? 0
-  if      (yoy < -0.10) score += 2
-  else if (yoy < -0.03) score += 1
+  // 3. Dividend value YoY (last payment vs same month last year)
+  const divYoy = div._yoy_valor ?? 0
+  if      (divYoy < -0.10) score += 2
+  else if (divYoy < -0.03) score += 1
 
   // 4. Liquidity (avg trades/day 30d) — baixa = higher risk
   const liq30 = preco.liquidez?.['30d'] ?? 0
