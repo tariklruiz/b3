@@ -75,7 +75,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 .header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 24px; }
 .ticker-block { display: flex; align-items: center; gap: 14px; }
 .ticker { background: var(--bg4); border: 0.5px solid var(--accent); color: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 500; padding: 7px 16px; border-radius: 6px; letter-spacing: .04em; }
-.fund-name { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fund-name { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow: visible; position: relative; }
 .fund-sub { font-size: 11px; color: var(--text3); margin-top: 4px; font-family: 'IBM Plex Mono', monospace; }
 .health-wrap { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .updated { font-size: 10px; color: var(--text3); font-family: 'IBM Plex Mono', monospace; margin-top: 5px; text-align: right; }
@@ -115,7 +115,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 /* TOOLTIP */
 .tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
 .tooltip-icon { width: 15px; height: 15px; border-radius: 50%; background: var(--bg3); border: 0.5px solid var(--border2); font-size: 9px; font-weight: 500; color: var(--text3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin-left: 6px; flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; }
-.tooltip-box { display: none; position: absolute; left: 22px; top: -8px; min-width: 260px; width: max-content; max-width: 380px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 10px; padding: 13px; font-size: 12px; color: var(--text); line-height: 1.6; z-index: 100; }
+.tooltip-box { display: none; position: absolute; left: 0; top: 24px; min-width: 260px; width: max-content; max-width: 400px; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 10px; padding: 13px; font-size: 12px; color: var(--text); line-height: 1.6; z-index: 300; }
 .tooltip-wrap:hover .tooltip-box { display: block; }
 .ir-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
 .ir-table td { padding: 4px 0; border-bottom: 0.5px solid var(--border); color: var(--text2); }
@@ -351,13 +351,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
       <div class="surface">
         <div style="display:flex;align-items:center;gap:3px">
           <div id="f-sim-mensal-label" style="font-size:10px;color:var(--text3);line-height:1.4">renda mensal</div>
-          <div class="tooltip-wrap">
-            <div class="tooltip-icon">?</div>
-            <div class="tooltip-box">
-              <div style="font-weight:500;margin-bottom:6px">como calculamos</div>
-              <div style="font-size:11px;color:var(--text2)">Média dos últimos 12 dividendos pagos × número de cotas compradas.</div>
-            </div>
-          </div>
         </div>
         <div style="font-size:20px;font-weight:600;color:var(--green);margin-top:5px" id="f-sim-mensal"></div>
         <div class="mono" style="font-size:10px;color:var(--text3)">média 12M · por mês</div>
