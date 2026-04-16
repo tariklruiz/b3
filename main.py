@@ -460,7 +460,7 @@ def get_benchmarks(request: Request):
     conn_b3 = get_b3()
     price_rows = conn_b3.execute("""
         SELECT CodNeg AS ticker, PrecoUltimo AS preco
-        FROM cotahist
+        FROM cotahist c
         WHERE TpMerc = 10 AND PrecoUltimo > 0
           AND DtPregao = (SELECT MAX(DtPregao) FROM cotahist WHERE CodNeg = c.CodNeg AND TpMerc = 10)
         GROUP BY CodNeg
