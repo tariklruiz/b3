@@ -794,7 +794,7 @@ function calcRisco(div, vol, preco) {
 
   // 5. Price D-90
   const d90 = v.d90 ?? 0
-  if      (d90 < -0.10) score += 2
+  if      (d90 < -0.11) score += 2
   else if (d90 < -0.07) score += 1
 
   // 6. Price 12M
@@ -804,8 +804,8 @@ function calcRisco(div, vol, preco) {
 
   // 7. Price 24M
   const d24m = v['24m'] ?? 0
-  if      (d24m < -0.20) score += 2
-  else if (d24m < -0.14) score += 1
+  if      (d24m < -0.15) score += 2
+  else if (d24m < -0.11) score += 1
 
   if      (score <= 3) return 'baixo'
   else if (score <= 7) return 'medio'
