@@ -501,10 +501,6 @@ function render(f) {
   // Build dynamic risk tooltip
   const ttEl = document.getElementById('f-risco-tooltip')
   if (ttEl) {
-    const v   = f._preco_variacao || {}
-    const liq = f._liquidez || {}
-
-    // score per signal: 0=baixo, 1=medio, 2=alto
     function sigScore(val, medThresh, hiThresh) {
       if (val === null || val === undefined) return null
       if (val <= hiThresh)  return 2
@@ -512,68 +508,79 @@ function render(f) {
       return 0
     }
     function sigScoreHigh(val, medThresh, hiThresh) {
-      // higher = worse (volatility, liquidity inverse)
       if (val === null || val === undefined) return null
       if (val >= hiThresh)  return 2
       if (val >= medThresh) return 1
       return 0
     }
     function liqScoreInv(val) {
-      // lower liquidity = higher risk
       if (val === null || val === undefined) return null
       if (val < 5000)  return 2
       if (val < 20000) return 1
       return 0
     }
 
+    const consistency = f.div_total > 0 ? f.div_pagos / f.div_total : 1
+
     const signals = [
-      { name: 'Volatilidade 90d', val: f.vol_90d,                      score: sigScoreHigh(f.vol_90d, 0.15, 0.25),            fmt: v => fmtPctAbs(v),  low: '< 15%',  med: '15–25%', hi: '> 25%' },
-      { name: 'Consistência div.',val: f.div_pagos / f.div_total,       score: sigScoreHigh(1 - f.div_pagos/f.div_total, 0, 0.15), fmt: v => Math.round(v*100)+'%', low: '100%', med: '85–99%', hi: '< 85%' },
-      { name: 'Dividendo YoY',    val: f._div_yoy,                      score: sigScore(f._div_yoy, -0.03, -0.10),              fmt: v => fmtPct(v),     low: '> -3%',  med: '-3% a -10%', hi: '< -10%' },
-      { name: 'Liquidez 30d',     val: f.liq_30d,                       score: liqScoreInv(f.liq_30d),                          fmt: v => fmtK(Math.round(v)), low: '> 20k', med: '5k–20k', hi: '< 5k' },
-      { name: 'Preço D-30',       val: f.preco_d30,                     score: sigScore(f.preco_d30, -0.07, -0.11),             fmt: v => fmtPct(v),     low: '> -3%',  med: '-3% a -7%',  hi: '< -11%' },
-      { name: 'Preço D-180',      val: f.preco_d180,                    score: sigScore(f.preco_d180, -0.08, -0.12),            fmt: v => fmtPct(v),     low: '> -4%',  med: '-4% a -8%',  hi: '< -12%' },
-      { name: 'Preço 12M',        val: f.preco_12m,                     score: sigScore(f.preco_12m, -0.09, -0.13),             fmt: v => fmtPct(v),     low: '> -5%',  med: '-5% a -9%',  hi: '< -13%' },
-      { name: 'Preço 24M',        val: f.preco_24m,                     score: sigScore(f.preco_24m, -0.10, -0.14),             fmt: v => fmtPct(v),     low: '> -6%',  med: '-6% a -10%', hi: '< -14%' },
+      { name: 'Volatilidade 90d', val: f.vol_90d,    score: sigScoreHigh(f.vol_90d, 0.15, 0.25),              fmt: v => fmtPctAbs(v),        low: '< 15%',  med: '15–25%',     hi: '> 25%'   },
+      { name: 'Consistência div.',val: consistency,   score: sigScoreHigh(1-consistency, 0, 0.15),             fmt: v => Math.round(v*100)+'%',low: '100%',  med: '85–99%',     hi: '< 85%'   },
+      { name: 'Dividendo YoY',    val: f._div_yoy,   score: sigScore(f._div_yoy, -0.03, -0.10),               fmt: v => fmtPct(v),            low: '> -3%',  med: '-3% a -10%', hi: '< -10%'  },
+      { name: 'Liquidez 30d',     val: f.liq_30d,    score: liqScoreInv(f.liq_30d),                           fmt: v => fmtK(Math.round(v)),  low: '> 20k',  med: '5k–20k',     hi: '< 5k'    },
+      { name: 'Preço D-30',       val: f.preco_d30,  score: sigScore(f.preco_d30,  -0.07, -0.11),             fmt: v => fmtPct(v),            low: '> -3%',  med: '-3% a -7%',  hi: '< -11%'  },
+      { name: 'Preço D-180',      val: f.preco_d180, score: sigScore(f.preco_d180, -0.08, -0.12),             fmt: v => fmtPct(v),            low: '> -4%',  med: '-4% a -8%',  hi: '< -12%'  },
+      { name: 'Preço 12M',        val: f.preco_12m,  score: sigScore(f.preco_12m,  -0.09, -0.13),             fmt: v => fmtPct(v),            low: '> -5%',  med: '-5% a -9%',  hi: '< -13%'  },
+      { name: 'Preço 24M',        val: f.preco_24m,  score: sigScore(f.preco_24m,  -0.10, -0.14),             fmt: v => fmtPct(v),            low: '> -6%',  med: '-6% a -10%', hi: '< -14%'  },
     ]
 
     const scoreColors = ['var(--green)', 'var(--amber)', 'var(--red)']
-    const scoreLabels = ['baixo', 'médio', 'alto']
+    let totalPts = 0, nLow = 0, nMed = 0, nHi = 0
 
     const rows = signals.map(s => {
       const sc = s.score
-      const isNull = sc === null
+      if (sc !== null) {
+        totalPts += sc
+        if (sc === 0) nLow++
+        else if (sc === 1) nMed++
+        else nHi++
+      }
       const valStr = s.val != null ? s.fmt(s.val) : '—'
-
       const cols = [s.low, s.med, s.hi].map((label, i) => {
-        const active = !isNull && sc === i
-        const bg = active ? scoreColors[i] : 'transparent'
+        const active = sc !== null && sc === i
+        const bg    = active ? scoreColors[i] : 'transparent'
         const color = active ? '#F1EFE8' : 'var(--text3)'
-        const fw = active ? '600' : '400'
-        return `<td style="padding:3px 4px;text-align:center;border-radius:3px;background:${bg};color:${color};font-weight:${fw}">${label}</td>`
+        const fw    = active ? '600' : '400'
+        return `<td style="padding:3px 5px;text-align:center;border-radius:3px;background:${bg};color:${color};font-weight:${fw};white-space:nowrap">${label}</td>`
       }).join('')
-
-      const nameColor = !isNull && sc > 0 ? scoreColors[sc] : 'var(--text2)'
+      const nameColor = sc !== null && sc > 0 ? scoreColors[sc] : 'var(--text2)'
       return `<tr>
-        <td style="padding:3px 0;color:${nameColor};padding-right:6px">${s.name}</td>
-        <td style="padding:3px 6px;color:var(--text3);text-align:right;font-size:9px">${valStr}</td>
+        <td style="padding:3px 0;color:${nameColor};padding-right:8px;white-space:nowrap">${s.name}</td>
+        <td style="padding:3px 8px;color:var(--text3);text-align:right;white-space:nowrap">${valStr}</td>
         ${cols}
       </tr>`
     }).join('')
 
+    const riskColor = totalPts <= 3 ? 'var(--green)' : totalPts <= 7 ? 'var(--amber)' : 'var(--red)'
+    const riskLabel = totalPts <= 3 ? 'baixo' : totalPts <= 7 ? 'médio' : 'alto'
+
     ttEl.innerHTML = `
       <div style="font-weight:500;margin-bottom:6px">como calculamos o risco</div>
-      <div style="font-size:10px;color:var(--text2);margin-bottom:8px">8 sinais · 0–3 pts = baixo · 4–7 = médio · 8+ = alto</div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:2px">Cada sinal recebe 0 pts (baixo), 1 pt (médio) ou 2 pts (alto).</div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:10px">Total: 0–3 = baixo · 4–7 = médio · 8+ = alto.</div>
       <table style="width:100%;border-collapse:collapse;font-size:10px;font-family:'IBM Plex Mono',monospace">
         <tr style="color:var(--text3);font-size:9px">
-          <td style="padding:2px 0;border-bottom:0.5px solid var(--border);padding-right:6px">Sinal</td>
-          <td style="padding:2px 6px;border-bottom:0.5px solid var(--border);text-align:right">Valor</td>
-          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Baixo</td>
-          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Médio</td>
-          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Alto</td>
+          <td style="padding:2px 0;border-bottom:0.5px solid var(--border);padding-right:8px">Sinal</td>
+          <td style="padding:2px 8px;border-bottom:0.5px solid var(--border);text-align:right">Valor</td>
+          <td style="padding:2px 5px;border-bottom:0.5px solid var(--border);text-align:center">Baixo (0)</td>
+          <td style="padding:2px 5px;border-bottom:0.5px solid var(--border);text-align:center">Médio (1)</td>
+          <td style="padding:2px 5px;border-bottom:0.5px solid var(--border);text-align:center">Alto (2)</td>
         </tr>
         ${rows}
       </table>
+      <div style="margin-top:10px;padding-top:8px;border-top:0.5px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:${riskColor}">Pontuação: ${totalPts} pts → risco ${riskLabel}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:'IBM Plex Mono',monospace">${nLow} sinal(is) baixo · ${nMed} médio · ${nHi} alto</div>
+      </div>
       <div style="font-size:9px;color:var(--text3);margin-top:8px">Vacância e risco de default em breve.</div>
     `
   }
@@ -744,11 +751,12 @@ async function loadFund(ticker) {
   showLoading()
 
   try {
-    const [precoRes, divRes, informeRes, benchRes] = await Promise.all([
+    const [precoRes, divRes, informeRes, benchRes, cdiRes] = await Promise.all([
       fetch(`${API_BASE}/fundo/preco?ticker=${ticker}`),
       fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`),
       fetch(`${API_BASE}/fundo/informe?ticker=${ticker}`),
-      fetch(`${API_BASE}/benchmarks`)
+      fetch(`${API_BASE}/benchmarks`),
+      fetch(`${API_BASE}/cdi`)
     ])
 
     if (!precoRes.ok) {
@@ -760,11 +768,13 @@ async function loadFund(ticker) {
       throw new Error(err.detail || `Dividendos para ${ticker} não encontrados`)
     }
 
-    const preco   = await precoRes.json()
-    const div     = await divRes.json()
-    const informe = informeRes.ok ? await informeRes.json() : null
-    const benchData = benchRes.ok ? await benchRes.json() : null
+    const preco     = await precoRes.json()
+    const div       = await divRes.json()
+    const informe   = informeRes.ok ? await informeRes.json() : null
+    const benchData = benchRes.ok  ? await benchRes.json()   : null
+    const cdiData   = cdiRes.ok    ? await cdiRes.json()     : null
     const benchmarks = benchData ? benchData.benchmarks : {}
+    const cdiMensal  = cdiData   ? cdiData.cdi_mensal   : CDI_MENSAL
 
     // benchmark hint for this fund's classificacao
     const classificacao = informe ? informe.classificacao : null
@@ -855,7 +865,7 @@ async function loadFund(ticker) {
       bench_hint:  benchHint,
 
       sim_investimento: 10000,
-      cdi_mensal:       CDI_MENSAL,
+      cdi_mensal:       cdiMensal,
 
       gestor_resumo: null,
       gestor_tom:    null,
