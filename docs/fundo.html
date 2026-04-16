@@ -340,7 +340,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 <!-- ROW 4: SIMULATOR + SUMMARY -->
 <div class="col2 row">
   <div class="card">
-    <div class="sec-label" style="margin-bottom:14px">simulador — R$ 10.000 investidos hoje</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div class="sec-label" style="margin-bottom:0">simulador</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text2)">investimento</span>
+        <div style="display:flex;align-items:center;background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;height:30px;padding:0 10px;gap:4px">
+          <span style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">R$</span>
+          <input id="sim-input" type="number" min="100" step="1000"
+            style="width:90px;background:transparent;border:none;outline:none;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);text-align:right"
+            value="10000">
+        </div>
+      </div>
+    </div>
     <div class="sim-grid">
       <div class="surface">
         <div style="font-size:10px;color:var(--text3)">cotas compradas</div>
@@ -348,9 +359,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
         <div class="mono" style="font-size:10px;color:var(--text3)" id="f-sim-preco"></div>
       </div>
       <div class="surface">
-        <div style="font-size:10px;color:var(--text3)">renda mensal</div>
+        <div style="display:flex;align-items:center;gap:3px">
+          <div style="font-size:10px;color:var(--text3)">renda mensal</div>
+          <div class="tooltip-wrap">
+            <div class="tooltip-icon">?</div>
+            <div class="tooltip-box">
+              <div style="font-weight:500;margin-bottom:6px">como calculamos</div>
+              <div style="font-size:11px;color:var(--text2)">Média dos últimos 12 dividendos pagos × número de cotas compradas. Mais representativo do que usar apenas o último pagamento, que pode ser pontualmente alto ou baixo.</div>
+            </div>
+          </div>
+        </div>
         <div style="font-size:20px;font-weight:600;color:var(--green);margin-top:5px" id="f-sim-mensal"></div>
-        <div class="mono" style="font-size:10px;color:var(--text3)">isento de IR</div>
+        <div class="mono" style="font-size:10px;color:var(--text3)">média 12M · por mês</div>
       </div>
       <div class="surface">
         <div style="font-size:10px;color:var(--text3)">renda anual</div>
@@ -380,7 +400,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
         <div class="mono" style="font-size:10px;color:var(--text3)">gross-up 20% · 181–360d</div>
       </div>
     </div>
-    <div class="hint">simulação pelo último dividendo. rendimentos passados não garantem resultados futuros.</div>
+    <div class="hint">simulação pela média de dividendos dos últimos 12 meses. rendimentos passados não garantem resultados futuros.</div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
@@ -562,19 +582,30 @@ function render(f) {
   if (benchEl) benchEl.textContent = f.bench_hint || ''
 
   // Simulador
-  const cotas   = Math.floor(f.sim_investimento / f.preco)
-  const mensal  = f.div_valor != null ? Math.round(cotas * f.div_valor) : null
-  const anual   = mensal != null ? mensal * 12 : null
-  const grossup = (f.dy_anual != null && f.cdi_mensal > 0)
-    ? (f.dy_anual / (1 - 0.20) / f.cdi_mensal / 12 * 100).toFixed(0)
-    : null
-  setText('f-sim-cotas',  cotas.toLocaleString('pt-BR'))
-  setText('f-sim-preco',  'a ' + fmtBRL(f.preco))
-  setText('f-sim-mensal', mensal != null ? 'R$ ' + mensal.toLocaleString('pt-BR') : '—')
-  setText('f-sim-anual',  anual  != null ? 'R$ ' + anual.toLocaleString('pt-BR')  : '—')
-  setText('f-sim-grossup', grossup != null ? grossup + '% CDI' : '—')
-  const gtip = document.getElementById('f-grossup-tip')
-  if (gtip && anual != null) gtip.textContent = `Quanto precisaria render uma aplicação tributada (CDB, Tesouro) para entregar os mesmos R$ ${anual.toLocaleString('pt-BR')} líquidos que este FII entrega isento de IR no ano.`
+  function runSim() {
+    const inputEl = document.getElementById('sim-input')
+    const investimento = inputEl ? Math.max(0, parseFloat(inputEl.value) || 0) : f.sim_investimento
+    const cotas   = Math.floor(investimento / f.preco)
+    const mensal  = f.div_avg12 != null ? Math.round(cotas * f.div_avg12) : null
+    const anual   = mensal != null ? mensal * 12 : null
+    const grossup = (f.dy_anual != null && f.cdi_mensal > 0)
+      ? (f.dy_anual / (1 - 0.20) / f.cdi_mensal / 12 * 100).toFixed(0)
+      : null
+    setText('f-sim-cotas',   cotas.toLocaleString('pt-BR'))
+    setText('f-sim-preco',   'a ' + fmtBRL(f.preco))
+    setText('f-sim-mensal',  mensal != null ? 'R$ ' + mensal.toLocaleString('pt-BR') : '—')
+    setText('f-sim-anual',   anual  != null ? 'R$ ' + anual.toLocaleString('pt-BR')  : '—')
+    setText('f-sim-grossup', grossup != null ? grossup + '% CDI' : '—')
+    const gtip = document.getElementById('f-grossup-tip')
+    if (gtip && anual != null) gtip.textContent = `Quanto precisaria render uma aplicação tributada (CDB, Tesouro) para entregar os mesmos R$ ${anual.toLocaleString('pt-BR')} líquidos que este FII entrega isento de IR no ano.`
+  }
+  runSim()
+  const simInput = document.getElementById('sim-input')
+  if (simInput) {
+    simInput.removeEventListener('input', simInput._simHandler)
+    simInput._simHandler = () => runSim()
+    simInput.addEventListener('input', simInput._simHandler)
+  }
 
   // Gestor IA
   const gestorCard = document.getElementById('f-gestor-content')
@@ -720,6 +751,9 @@ async function loadFund(ticker) {
       liq_12m:     liq['12m'] ?? 0,
 
       div_valor:   div.ultimo.valor,
+      div_avg12:   div.historico.length > 0
+                     ? div.historico.reduce((s, d) => s + (d.valor_provento || 0), 0) / div.historico.length
+                     : div.ultimo.valor,
       div_pago_em: div.ultimo.data_pago  || '—',
       div_base:    div.ultimo.data_base  || '—',
       div_pagos:   div.consistencia.pagos,
