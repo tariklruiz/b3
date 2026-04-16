@@ -190,22 +190,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
         <span id="f-risco"></span>
         <div class="tooltip-wrap">
           <div class="tooltip-icon">?</div>
-          <div class="tooltip-box" style="width:290px">
-            <div style="font-weight:500;margin-bottom:8px">como calculamos o risco</div>
-            <div style="font-size:11px;color:var(--text2);margin-bottom:10px">8 sinais, cada um pontuado 0–2. Total 0–3 = baixo · 4–7 = médio · 8+ = alto.</div>
-            <table style="width:100%;border-collapse:collapse;font-size:10px;font-family:'IBM Plex Mono',monospace">
-              <tr style="color:var(--text3)"><td style="padding:3px 0;border-bottom:0.5px solid var(--border)">Sinal</td><td style="padding:3px 0;border-bottom:0.5px solid var(--border);text-align:right">Médio</td><td style="padding:3px 0;border-bottom:0.5px solid var(--border);text-align:right">Alto</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Volatilidade 90d</td><td style="padding:3px 0;text-align:right">&gt;15%</td><td style="padding:3px 0;text-align:right">&gt;25%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Consistência div.</td><td style="padding:3px 0;text-align:right">&lt;100%</td><td style="padding:3px 0;text-align:right">&lt;85%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Dividendo YoY</td><td style="padding:3px 0;text-align:right">&lt;-3%</td><td style="padding:3px 0;text-align:right">&lt;-10%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Liquidez 30d</td><td style="padding:3px 0;text-align:right">&lt;20k</td><td style="padding:3px 0;text-align:right">&lt;5k</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Preço D-30</td><td style="padding:3px 0;text-align:right">&lt;-7%</td><td style="padding:3px 0;text-align:right">&lt;-11%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Preço D-180</td><td style="padding:3px 0;text-align:right">&lt;-8%</td><td style="padding:3px 0;text-align:right">&lt;-12%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Preço 12M</td><td style="padding:3px 0;text-align:right">&lt;-9%</td><td style="padding:3px 0;text-align:right">&lt;-13%</td></tr>
-              <tr><td style="padding:3px 0;color:var(--text2)">Preço 24M</td><td style="padding:3px 0;text-align:right">&lt;-10%</td><td style="padding:3px 0;text-align:right">&lt;-14%</td></tr>
-            </table>
-            <div style="font-size:10px;color:var(--text3);margin-top:8px">Vacância e risco de default serão adicionados em breve.</div>
-          </div>
+          <div id="f-risco-tooltip" class="tooltip-box" style="width:310px"></div>
         </div>
       </div>
       <div class="fund-sub" id="f-segmento"></div>
@@ -513,6 +498,86 @@ function render(f) {
   const [rCls, rClr, rTxt] = riscoBadge(f.risco)
   set('f-risco', `<span class="badge ${rCls}"><span class="dot8" style="background:${rClr}"></span>${rTxt}</span>`)
 
+  // Build dynamic risk tooltip
+  const ttEl = document.getElementById('f-risco-tooltip')
+  if (ttEl) {
+    const v   = f._preco_variacao || {}
+    const liq = f._liquidez || {}
+
+    // score per signal: 0=baixo, 1=medio, 2=alto
+    function sigScore(val, medThresh, hiThresh) {
+      if (val === null || val === undefined) return null
+      if (val <= hiThresh)  return 2
+      if (val <= medThresh) return 1
+      return 0
+    }
+    function sigScoreHigh(val, medThresh, hiThresh) {
+      // higher = worse (volatility, liquidity inverse)
+      if (val === null || val === undefined) return null
+      if (val >= hiThresh)  return 2
+      if (val >= medThresh) return 1
+      return 0
+    }
+    function liqScoreInv(val) {
+      // lower liquidity = higher risk
+      if (val === null || val === undefined) return null
+      if (val < 5000)  return 2
+      if (val < 20000) return 1
+      return 0
+    }
+
+    const signals = [
+      { name: 'Volatilidade 90d', val: f.vol_90d,                      score: sigScoreHigh(f.vol_90d, 0.15, 0.25),            fmt: v => fmtPctAbs(v),  low: '< 15%',  med: '15–25%', hi: '> 25%' },
+      { name: 'Consistência div.',val: f.div_pagos / f.div_total,       score: sigScoreHigh(1 - f.div_pagos/f.div_total, 0, 0.15), fmt: v => Math.round(v*100)+'%', low: '100%', med: '85–99%', hi: '< 85%' },
+      { name: 'Dividendo YoY',    val: f._div_yoy,                      score: sigScore(f._div_yoy, -0.03, -0.10),              fmt: v => fmtPct(v),     low: '> -3%',  med: '-3% a -10%', hi: '< -10%' },
+      { name: 'Liquidez 30d',     val: f.liq_30d,                       score: liqScoreInv(f.liq_30d),                          fmt: v => fmtK(Math.round(v)), low: '> 20k', med: '5k–20k', hi: '< 5k' },
+      { name: 'Preço D-30',       val: f.preco_d30,                     score: sigScore(f.preco_d30, -0.07, -0.11),             fmt: v => fmtPct(v),     low: '> -3%',  med: '-3% a -7%',  hi: '< -11%' },
+      { name: 'Preço D-180',      val: f.preco_d180,                    score: sigScore(f.preco_d180, -0.08, -0.12),            fmt: v => fmtPct(v),     low: '> -4%',  med: '-4% a -8%',  hi: '< -12%' },
+      { name: 'Preço 12M',        val: f.preco_12m,                     score: sigScore(f.preco_12m, -0.09, -0.13),             fmt: v => fmtPct(v),     low: '> -5%',  med: '-5% a -9%',  hi: '< -13%' },
+      { name: 'Preço 24M',        val: f.preco_24m,                     score: sigScore(f.preco_24m, -0.10, -0.14),             fmt: v => fmtPct(v),     low: '> -6%',  med: '-6% a -10%', hi: '< -14%' },
+    ]
+
+    const scoreColors = ['var(--green)', 'var(--amber)', 'var(--red)']
+    const scoreLabels = ['baixo', 'médio', 'alto']
+
+    const rows = signals.map(s => {
+      const sc = s.score
+      const isNull = sc === null
+      const valStr = s.val != null ? s.fmt(s.val) : '—'
+
+      const cols = [s.low, s.med, s.hi].map((label, i) => {
+        const active = !isNull && sc === i
+        const bg = active ? scoreColors[i] : 'transparent'
+        const color = active ? '#F1EFE8' : 'var(--text3)'
+        const fw = active ? '600' : '400'
+        return `<td style="padding:3px 4px;text-align:center;border-radius:3px;background:${bg};color:${color};font-weight:${fw}">${label}</td>`
+      }).join('')
+
+      const nameColor = !isNull && sc > 0 ? scoreColors[sc] : 'var(--text2)'
+      return `<tr>
+        <td style="padding:3px 0;color:${nameColor};padding-right:6px">${s.name}</td>
+        <td style="padding:3px 6px;color:var(--text3);text-align:right;font-size:9px">${valStr}</td>
+        ${cols}
+      </tr>`
+    }).join('')
+
+    ttEl.innerHTML = `
+      <div style="font-weight:500;margin-bottom:6px">como calculamos o risco</div>
+      <div style="font-size:10px;color:var(--text2);margin-bottom:8px">8 sinais · 0–3 pts = baixo · 4–7 = médio · 8+ = alto</div>
+      <table style="width:100%;border-collapse:collapse;font-size:10px;font-family:'IBM Plex Mono',monospace">
+        <tr style="color:var(--text3);font-size:9px">
+          <td style="padding:2px 0;border-bottom:0.5px solid var(--border);padding-right:6px">Sinal</td>
+          <td style="padding:2px 6px;border-bottom:0.5px solid var(--border);text-align:right">Valor</td>
+          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Baixo</td>
+          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Médio</td>
+          <td style="padding:2px 4px;border-bottom:0.5px solid var(--border);text-align:center">Alto</td>
+        </tr>
+        ${rows}
+      </table>
+      <div style="font-size:9px;color:var(--text3);margin-top:8px">Vacância e risco de default em breve.</div>
+    `
+  }
+
   const [sCls, sClr, sTxt] = saludeBadge(f.saude)
   set('f-saude', `<span class="badge ${sCls}"><span class="dot8" style="background:${sClr}"></span>${sTxt}</span>`)
 
@@ -786,6 +851,7 @@ async function loadFund(ticker) {
 
       dy_anual:    div.dy.anual  ?? 0,
       dy_yoy:      div.dy.yoy   ?? 0,
+      _div_yoy:    div._yoy_valor ?? 0,
       bench_hint:  benchHint,
 
       sim_investimento: 10000,
