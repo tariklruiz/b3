@@ -292,38 +292,48 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 </div>
 
 <!-- ROW 3: DIVIDEND CONSISTENCY + DY -->
-<div class="col2 row">
-  <div class="card">
-    <div class="sec-label">consistência de dividendos — 13 meses</div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:6px">último dividendo</div>
-    <div style="display:flex;align-items:baseline;gap:8px">
-      <span style="font-size:22px;font-weight:600" id="f-div-valor"></span>
-      <span class="mono" style="font-size:11px;color:var(--text2)" id="f-div-pago"></span>
+<!-- ROW 3: DIVIDENDS (full width) -->
+<div class="card row">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:16px">
+    <!-- Left: last dividend + consistency -->
+    <div>
+      <div class="sec-label">dividendos — últimos 13 meses</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:5px">último dividendo</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="font-size:22px;font-weight:600" id="f-div-valor"></span>
+        <span class="mono" style="font-size:11px;color:var(--text2)" id="f-div-pago"></span>
+      </div>
+      <div class="mono" style="font-size:11px;color:var(--text3);margin-top:3px" id="f-div-base"></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <span style="font-size:13px;font-weight:500" id="f-div-streak"></span>
+        <span id="f-div-badge"></span>
+      </div>
     </div>
-    <div class="mono" style="font-size:11px;color:var(--text3);margin-top:3px;margin-bottom:14px" id="f-div-base"></div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
-      <span style="font-size:13px;font-weight:500" id="f-div-streak"></span>
-      <span id="f-div-badge"></span>
-    </div>
-    <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
-    <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2);flex-wrap:wrap;font-family:'IBM Plex Mono',monospace">
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#185FA5"></div>igual</span>
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#1D9E75"></div>maior</span>
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623"></div>menor</span>
-      <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252"></div>não pagou</span>
+    <!-- Right: DY -->
+    <div style="text-align:right">
+      <div class="sec-label" style="text-align:right">DY</div>
+      <div style="display:flex;align-items:baseline;gap:10px;justify-content:flex-end">
+        <div>
+          <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:2px">mensal</div>
+          <div style="font-size:22px;font-weight:600" id="f-dy-mensal"></div>
+        </div>
+        <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
+        <div>
+          <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:2px">anualizado</div>
+          <div style="font-size:22px;font-weight:600" id="f-dy-anual"></div>
+        </div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px">soma dos últimos 12 dividendos / preço atual</div>
+      <div id="f-dy-benchmark" class="mono" style="font-size:10px;color:var(--text2);margin-top:4px"></div>
     </div>
   </div>
-  <div class="card">
-    <div class="sec-label">DY anualizado</div>
-    <div style="font-size:26px;font-weight:600" id="f-dy-anual"></div>
-    <div class="mono" style="font-size:11px;color:var(--text2);margin-top:4px">baseado nos últimos 12 meses</div>
-    <div class="pills">
-      <div class="pill" id="f-pill-dy-m1"></div>
-      <div class="pill" id="f-pill-dy-m3"></div>
-      <div class="pill" id="f-pill-dy-m12"></div>
-      <div class="pill" id="f-pill-dy-yoy"></div>
-    </div>
-    <div class="hint">DY mensal acima de 0,80% é considerado razoável para FIIs de tijolo em 2026.</div>
+  <!-- Waffle -->
+  <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
+  <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2);flex-wrap:wrap;font-family:'IBM Plex Mono',monospace">
+    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#185FA5"></div>igual</span>
+    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#1D9E75"></div>maior</span>
+    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623"></div>menor</span>
+    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252"></div>não pagou</span>
   </div>
 </div>
 
@@ -546,11 +556,10 @@ function render(f) {
   })
 
   // DY
-  setText('f-dy-anual', fmtPctAbs(f.dy_anual))
-  set('f-pill-dy-m1',  `<div class="pill-label">M-1</div><div class="pill-val c-muted">${fmtPctAbs(f.dy_m1)}</div>`)
-  set('f-pill-dy-m3',  `<div class="pill-label">M-3 méd.</div><div class="pill-val ${f.dy_m3 < f.dy_m1 ? 'c-amber':'c-muted'}">${fmtPctAbs(f.dy_m3)}</div>`)
-  set('f-pill-dy-m12', `<div class="pill-label">M-12 méd.</div><div class="pill-val c-muted">${fmtPctAbs(f.dy_m12)}</div>`)
-  set('f-pill-dy-yoy', `<div class="pill-label">YoY</div><div class="pill-val ${pctColor(f.dy_yoy)}">${fmtPct(f.dy_yoy)}</div>`)
+  setText('f-dy-anual',  fmtPctAbs(f.dy_anual))
+  setText('f-dy-mensal', fmtPctAbs(f.dy_anual / 12))
+  const benchEl = document.getElementById('f-dy-benchmark')
+  if (benchEl) benchEl.textContent = f.bench_hint || ''
 
   // Simulador
   const cotas   = Math.floor(f.sim_investimento / f.preco)
@@ -629,10 +638,11 @@ async function loadFund(ticker) {
   showLoading()
 
   try {
-    const [precoRes, divRes, informeRes] = await Promise.all([
+    const [precoRes, divRes, informeRes, benchRes] = await Promise.all([
       fetch(`${API_BASE}/fundo/preco?ticker=${ticker}`),
       fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`),
-      fetch(`${API_BASE}/fundo/informe?ticker=${ticker}`)
+      fetch(`${API_BASE}/fundo/informe?ticker=${ticker}`),
+      fetch(`${API_BASE}/benchmarks`)
     ])
 
     if (!precoRes.ok) {
@@ -647,6 +657,15 @@ async function loadFund(ticker) {
     const preco   = await precoRes.json()
     const div     = await divRes.json()
     const informe = informeRes.ok ? await informeRes.json() : null
+    const benchData = benchRes.ok ? await benchRes.json() : null
+    const benchmarks = benchData ? benchData.benchmarks : {}
+
+    // benchmark hint for this fund's classificacao
+    const classificacao = informe ? informe.classificacao : null
+    const bench = classificacao ? benchmarks[classificacao] : null
+    const benchHint = bench
+      ? `mediana ${classificacao}: ${fmtPctAbs(bench.mediana_dy_mensal)}/mês · ${fmtPctAbs(bench.mediana_dy_anual)}/ano (${bench.n_fundos} fundos)`
+      : null
 
     // map API response → FUND object used by render()
     const v   = preco.variacao
@@ -712,10 +731,8 @@ async function loadFund(ticker) {
       })),
 
       dy_anual:    div.dy.anual  ?? 0,
-      dy_m1:       div.dy.m1    ?? 0,
-      dy_m3:       div.dy.m3    ?? 0,
-      dy_m12:      div.dy.m12   ?? 0,
       dy_yoy:      div.dy.yoy   ?? 0,
+      bench_hint:  benchHint,
 
       sim_investimento: 10000,
       cdi_mensal:       CDI_MENSAL,

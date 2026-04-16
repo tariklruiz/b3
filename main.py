@@ -446,3 +446,85 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         "rendimentos_distribuir": r["rendimentos_distribuir"],
     }
 
+
+@app.get("/benchmarks")
+@limiter.limit("10/minute")
+def get_benchmarks(request: Request):
+    """
+    Returns median monthly DY per classificacao, calculated from:
+    - dividendos.db: last 12 months of dividends per fund
+    - b3.db: latest price per fund
+    - informe_mensal.db: classificacao per fund (via cnpj)
+    """
+    # 1. Get latest price for all FIIs from b3.db
+    conn_b3 = get_b3()
+    price_rows = conn_b3.execute("""
+        SELECT CodNeg AS ticker, PrecoUltimo AS preco
+        FROM cotahist
+        WHERE TpMerc = 10 AND PrecoUltimo > 0
+          AND DtPregao = (SELECT MAX(DtPregao) FROM cotahist WHERE CodNeg = c.CodNeg AND TpMerc = 10)
+        GROUP BY CodNeg
+    """).fetchall()
+    conn_b3.close()
+    prices = {r["ticker"]: r["preco"] for r in price_rows}
+
+    # 2. Get sum of last 12 dividends + cnpj per ticker from dividendos.db
+    conn_div = get_div()
+    div_rows = conn_div.execute("""
+        SELECT cod_negociacao AS ticker,
+               cnpj_fundo,
+               SUM(valor_provento) AS dy12_abs
+        FROM (
+            SELECT cod_negociacao, cnpj_fundo, valor_provento,
+                   ROW_NUMBER() OVER (PARTITION BY cod_negociacao ORDER BY data_base DESC) AS rn
+            FROM dividendos
+            WHERE valor_provento > 0 AND cod_negociacao IS NOT NULL
+        )
+        WHERE rn <= 12
+        GROUP BY cod_negociacao
+        HAVING COUNT(*) >= 6
+    """).fetchall()
+    conn_div.close()
+
+    # Build ticker → (cnpj, dy12_abs)
+    div_map = {r["ticker"]: {"cnpj": r["cnpj_fundo"], "dy12": r["dy12_abs"]} for r in div_rows}
+
+    # 3. Get classificacao per cnpj from informe_mensal.db (latest competencia)
+    conn_inf = get_informe()
+    class_rows = conn_inf.execute("""
+        SELECT cnpj_fundo, classificacao
+        FROM informe_mensal
+        WHERE classificacao IS NOT NULL
+          AND competencia = (SELECT MAX(competencia) FROM informe_mensal AS i2
+                             WHERE i2.cnpj_fundo = informe_mensal.cnpj_fundo)
+        GROUP BY cnpj_fundo
+    """).fetchall()
+    conn_inf.close()
+    cnpj_to_class = {r["cnpj_fundo"]: r["classificacao"] for r in class_rows}
+
+    # 4. Calculate annual DY for each ticker and group by classificacao
+    from statistics import median
+    groups: dict = {}
+
+    for ticker, d in div_map.items():
+        preco = prices.get(ticker)
+        if not preco or preco <= 0:
+            continue
+        classificacao = cnpj_to_class.get(d["cnpj"])
+        if not classificacao:
+            continue
+        dy_anual = d["dy12"] / preco
+        dy_mensal = dy_anual / 12
+        groups.setdefault(classificacao, []).append(dy_mensal)
+
+    # 5. Compute median per group, require at least 5 funds
+    result = {}
+    for cls, values in groups.items():
+        if len(values) >= 5:
+            result[cls] = {
+                "mediana_dy_mensal": round(median(values), 6),
+                "mediana_dy_anual":  round(median(values) * 12, 6),
+                "n_fundos":          len(values),
+            }
+
+    return {"benchmarks": result, "calculado_em": datetime.now().strftime("%Y-%m-%d")}
