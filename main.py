@@ -447,33 +447,38 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
     }
 
 
-@app.get("/benchmarks")
-@limiter.limit("10/minute")
-def get_benchmarks(request: Request):
-    """
-    Returns median monthly DY per classificacao, calculated from:
-    - dividendos.db: last 12 months of dividends per fund
-    - b3.db: latest price per fund
-    - informe_mensal.db: classificacao per fund (via cnpj)
-    """
-    # 1. Get latest price for all FIIs from b3.db
+# ---------------------------------------------------------------------------
+# Benchmarks cache — recalculated at most once per hour
+# ---------------------------------------------------------------------------
+_benchmarks_cache: dict = {"data": None, "ts": 0}
+
+def _calc_benchmarks() -> dict:
+    from statistics import median as _median
+
+    # 1. Latest price per ticker — use MAX(DtPregao) in a subquery join
+    #    instead of a correlated subquery (much faster on large tables)
     conn_b3 = get_b3()
     price_rows = conn_b3.execute("""
-        SELECT CodNeg AS ticker, PrecoUltimo AS preco
+        SELECT c.CodNeg AS ticker, c.PrecoUltimo AS preco
         FROM cotahist c
-        WHERE TpMerc = 10 AND PrecoUltimo > 0
-          AND DtPregao = (SELECT MAX(DtPregao) FROM cotahist WHERE CodNeg = c.CodNeg AND TpMerc = 10)
-        GROUP BY CodNeg
+        INNER JOIN (
+            SELECT CodNeg, MAX(DtPregao) AS max_dt
+            FROM cotahist
+            WHERE TpMerc = 10 AND PrecoUltimo > 0
+            GROUP BY CodNeg
+        ) latest ON c.CodNeg = latest.CodNeg AND c.DtPregao = latest.max_dt
+        WHERE c.TpMerc = 10 AND c.PrecoUltimo > 0
     """).fetchall()
     conn_b3.close()
     prices = {r["ticker"]: r["preco"] for r in price_rows}
 
-    # 2. Get sum of last 12 dividends + cnpj per ticker from dividendos.db
+    # 2. Sum of last 12 dividends per ticker
     conn_div = get_div()
     div_rows = conn_div.execute("""
         SELECT cod_negociacao AS ticker,
                cnpj_fundo,
-               SUM(valor_provento) AS dy12_abs
+               SUM(valor_provento) AS dy12_abs,
+               COUNT(*)           AS n
         FROM (
             SELECT cod_negociacao, cnpj_fundo, valor_provento,
                    ROW_NUMBER() OVER (PARTITION BY cod_negociacao ORDER BY data_base DESC) AS rn
@@ -482,49 +487,65 @@ def get_benchmarks(request: Request):
         )
         WHERE rn <= 12
         GROUP BY cod_negociacao
-        HAVING COUNT(*) >= 6
+        HAVING n >= 6
     """).fetchall()
     conn_div.close()
-
-    # Build ticker → (cnpj, dy12_abs)
     div_map = {r["ticker"]: {"cnpj": r["cnpj_fundo"], "dy12": r["dy12_abs"]} for r in div_rows}
 
-    # 3. Get classificacao per cnpj from informe_mensal.db (latest competencia)
+    # 3. Latest classificacao per cnpj — use MAX(competencia) in a join
     conn_inf = get_informe()
     class_rows = conn_inf.execute("""
-        SELECT cnpj_fundo, classificacao
-        FROM informe_mensal
-        WHERE classificacao IS NOT NULL
-          AND competencia = (SELECT MAX(competencia) FROM informe_mensal AS i2
-                             WHERE i2.cnpj_fundo = informe_mensal.cnpj_fundo)
-        GROUP BY cnpj_fundo
+        SELECT i.cnpj_fundo, i.classificacao
+        FROM informe_mensal i
+        INNER JOIN (
+            SELECT cnpj_fundo, MAX(competencia) AS max_comp
+            FROM informe_mensal
+            WHERE classificacao IS NOT NULL
+            GROUP BY cnpj_fundo
+        ) latest ON i.cnpj_fundo = latest.cnpj_fundo AND i.competencia = latest.max_comp
+        WHERE i.classificacao IS NOT NULL
+        GROUP BY i.cnpj_fundo
     """).fetchall()
     conn_inf.close()
     cnpj_to_class = {r["cnpj_fundo"]: r["classificacao"] for r in class_rows}
 
-    # 4. Calculate annual DY for each ticker and group by classificacao
-    from statistics import median
+    # 4. Group DY by classificacao
     groups: dict = {}
-
     for ticker, d in div_map.items():
         preco = prices.get(ticker)
         if not preco or preco <= 0:
             continue
-        classificacao = cnpj_to_class.get(d["cnpj"])
-        if not classificacao:
+        cls = cnpj_to_class.get(d["cnpj"])
+        if not cls:
             continue
-        dy_anual = d["dy12"] / preco
-        dy_mensal = dy_anual / 12
-        groups.setdefault(classificacao, []).append(dy_mensal)
+        dy_mensal = (d["dy12"] / preco) / 12
+        groups.setdefault(cls, []).append(dy_mensal)
 
-    # 5. Compute median per group, require at least 5 funds
+    # 5. Median per group (min 5 funds)
     result = {}
     for cls, values in groups.items():
         if len(values) >= 5:
             result[cls] = {
-                "mediana_dy_mensal": round(median(values), 6),
-                "mediana_dy_anual":  round(median(values) * 12, 6),
+                "mediana_dy_mensal": round(_median(values), 6),
+                "mediana_dy_anual":  round(_median(values) * 12, 6),
                 "n_fundos":          len(values),
             }
+    return result
 
-    return {"benchmarks": result, "calculado_em": datetime.now().strftime("%Y-%m-%d")}
+
+@app.get("/benchmarks")
+@limiter.limit("30/minute")
+def get_benchmarks(request: Request):
+    """
+    Returns median monthly DY per classificacao.
+    Result is cached in memory for 1 hour.
+    """
+    import time as _time
+    now = _time.time()
+    if _benchmarks_cache["data"] is None or now - _benchmarks_cache["ts"] > 3600:
+        _benchmarks_cache["data"] = _calc_benchmarks()
+        _benchmarks_cache["ts"]   = now
+    return {
+        "benchmarks":   _benchmarks_cache["data"],
+        "calculado_em": datetime.fromtimestamp(_benchmarks_cache["ts"]).strftime("%Y-%m-%d %H:%M"),
+    }
