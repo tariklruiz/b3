@@ -91,6 +91,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
 
 /* CARDS */
 .card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+.card-flush { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 0; overflow: hidden; }
 .surface { background: var(--bg3); border-radius: 7px; padding: 11px 13px; }
 .sec-label { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; font-family: 'IBM Plex Mono', monospace; }
 .divider { border: none; border-top: 0.5px solid var(--border); margin: 14px 0; }
@@ -281,12 +282,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
   </div>
 </div>
 
-<!-- ROW 3: DIVIDEND CONSISTENCY + DY -->
 <!-- ROW 3: DIVIDENDS (full width) -->
-<div class="card row">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:16px">
-    <!-- Left: last dividend + consistency -->
-    <div>
+<div class="card-flush row">
+  <div style="display:flex;align-items:stretch;gap:0">
+
+    <!-- Left: last dividend + consistency + waffle + legend -->
+    <div style="flex:1;min-width:0;padding:16px 24px 14px 16px">
       <div class="sec-label">dividendos — últimos 13 meses</div>
       <div style="font-size:11px;color:var(--text2);margin-bottom:5px">último dividendo</div>
       <div style="display:flex;align-items:baseline;gap:8px">
@@ -294,20 +295,36 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
         <span class="mono" style="font-size:11px;color:var(--text2)" id="f-div-pago"></span>
       </div>
       <div class="mono" style="font-size:11px;color:var(--text3);margin-top:3px" id="f-div-base"></div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;margin-bottom:14px">
         <span style="font-size:13px;font-weight:500" id="f-div-streak"></span>
         <span id="f-div-badge"></span>
       </div>
+      <!-- Waffle -->
+      <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
+      <!-- Legend -->
+      <div style="margin-top:10px;padding-bottom:14px">
+        <div style="font-size:9px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-family:'IBM Plex Mono',monospace;margin-bottom:6px">Legenda de cores</div>
+        <div style="display:grid;grid-template-columns:auto auto;gap:4px 24px;font-size:10px;color:var(--text2);font-family:'IBM Plex Mono',monospace;width:fit-content">
+          <span style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#185FA5;flex-shrink:0"></div>igual ao mês anterior</span>
+          <span style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#1D9E75;flex-shrink:0"></div>maior que o mês anterior</span>
+          <span style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623;flex-shrink:0"></div>menor que o mês anterior</span>
+          <span style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252;flex-shrink:0"></div>sem pagamento no mês</span>
+        </div>
+      </div>
     </div>
-    <!-- Right: DY -->
-    <div style="text-align:right">
-      <div class="sec-label" style="text-align:right">DY</div>
-      <div style="display:flex;align-items:baseline;gap:10px;justify-content:flex-end">
+
+    <!-- Vertical divider -->
+    <div style="width:0.5px;background:var(--border);flex-shrink:0"></div>
+
+    <!-- Right: Dividend Yield + benchmark -->
+    <div style="flex:0 0 auto;padding:16px 16px 14px 20px">
+      <div class="sec-label" style="margin-bottom:6px">Dividend Yield</div>
+      <div style="display:flex;align-items:baseline;gap:10px">
         <div>
           <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:2px">mensal</div>
           <div style="font-size:22px;font-weight:600" id="f-dy-mensal"></div>
         </div>
-        <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
+        <div style="width:1px;height:52px;background:var(--border);margin:0 6px;align-self:center"></div>
         <div>
           <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:2px">anualizado</div>
           <div style="font-size:22px;font-weight:600" id="f-dy-anual"></div>
@@ -315,16 +332,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-seri
       </div>
       <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px">soma dos últimos 12 dividendos / preço atual</div>
       <div id="f-dy-benchmark" class="mono" style="font-size:10px;color:var(--text2);margin-top:4px"></div>
+      <div style="margin-top:6px" id="f-dy-bench-badge"></div>
     </div>
+
   </div>
-  <!-- Waffle -->
-  <div style="display:flex;gap:5px;align-items:flex-start;padding-bottom:6px" id="waffle"></div>
-  <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--text2);flex-wrap:wrap;font-family:'IBM Plex Mono',monospace">
-    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#185FA5"></div>igual</span>
-    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#1D9E75"></div>maior</span>
-    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f5a623"></div>menor</span>
-    <span style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:10px;border-radius:2px;background:#f05252"></div>não pagou</span>
-  </div>
+
+  <!-- Horizontal divider at very bottom -->
+  <div style="height:0.5px;background:var(--border)"></div>
 </div>
 
 <!-- ROW 4: SIMULATOR -->
@@ -655,6 +669,25 @@ function render(f) {
   const benchEl = document.getElementById('f-dy-benchmark')
   if (benchEl) benchEl.textContent = f.bench_hint || ''
 
+  // Benchmark comparison badge
+  const benchBadgeEl = document.getElementById('f-dy-bench-badge')
+  if (benchBadgeEl) {
+    if (f.bench_median_mensal != null && f.dy_anual != null) {
+      const dyMensal = f.dy_anual / 12
+      const diff = dyMensal - f.bench_median_mensal
+      const tol  = f.bench_median_mensal * 0.03  // 3% tolerance = "equal"
+      if (diff > tol) {
+        benchBadgeEl.innerHTML = `<span class="badge badge-ok">acima do benchmark</span>`
+      } else if (diff < -tol) {
+        benchBadgeEl.innerHTML = `<span class="badge badge-warn">abaixo do benchmark</span>`
+      } else {
+        benchBadgeEl.innerHTML = `<span class="badge badge-info">igual ao benchmark</span>`
+      }
+    } else {
+      benchBadgeEl.innerHTML = ''
+    }
+  }
+
   // Simulador
   function runSim() {
     const inputEl = document.getElementById('sim-input')
@@ -857,7 +890,8 @@ async function loadFund(ticker) {
       dy_anual:    div.dy.anual  ?? 0,
       dy_yoy:      div.dy.yoy   ?? 0,
       _div_yoy:    div._yoy_valor ?? 0,
-      bench_hint:  benchHint,
+      bench_hint:         benchHint,
+      bench_median_mensal: bench ? bench.mediana_dy_mensal : null,
 
       sim_investimento: 10000,
       cdi_mensal:       cdiMensal,
