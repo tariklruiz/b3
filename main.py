@@ -573,24 +573,24 @@ def get_cdi(request: Request):
         return _cdi_cache["data"]
 
     try:
-        url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4391/dados/ultimos/1?formato=json"
+        # Series 4389 = CDI diário em % a.a. (annualised daily rate)
+        url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json"
         with _req.urlopen(url, timeout=10) as resp:
             rows = _json.loads(resp.read())
 
-        # BCB returns daily CDI rate as % a.d. e.g. "0.05171"
-        cdi_diario_pct = float(rows[0]["valor"])
-        data_ref       = rows[0]["data"]  # DD/MM/YYYY
+        # BCB returns CDI as % a.a. e.g. "14.65"
+        cdi_anual_pct = float(rows[0]["valor"])
+        data_ref      = rows[0]["data"]  # DD/MM/YYYY
 
-        # Convert to monthly and annual (compound)
-        cdi_mensal = (1 + cdi_diario_pct / 100) ** 21 - 1   # ~21 trading days/month
-        cdi_anual  = (1 + cdi_diario_pct / 100) ** 252 - 1  # 252 trading days/year
+        cdi_anual  = cdi_anual_pct / 100
+        # Convert annual to monthly: (1 + anual)^(1/12) - 1
+        cdi_mensal = (1 + cdi_anual) ** (1/12) - 1
 
         result = {
-            "cdi_diario":  round(cdi_diario_pct / 100, 8),
-            "cdi_mensal":  round(cdi_mensal, 6),
             "cdi_anual":   round(cdi_anual, 6),
+            "cdi_mensal":  round(cdi_mensal, 6),
             "data_ref":    data_ref,
-            "fonte":       "Banco Central do Brasil — série 4391",
+            "fonte":       "Banco Central do Brasil — série 4389",
         }
         _cdi_cache["data"] = result
         _cdi_cache["ts"]   = now
