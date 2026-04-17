@@ -1,0 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  PALETA EXATA:
+  Azul primário:  #185FA5
+  Azul escuro:    #0C447C
+  Verde primário: #1D9E75
+  Verde escuro:   #0F6E56
+  Fundo claro:    #F1EFE8
+  Texto/grafite:  #2C2C2A
+*/
+
+@layer base {
+  /* ═══════════ LIGHT MODE (default) ═══════════ */
+  /* bg: #F1EFE8 / bg2: #ffffff / bg3: #e8e6df / bg4: #dddad2
+     text: #2C2C2A / text2: #5a5854 / text3: #9a9890 — accent = blue */
+  :root {
+    --background: 47 24% 93%;       /* #F1EFE8 */
+    --foreground: 60 2% 17%;        /* #2C2C2A */
+
+    --card: 0 0% 100%;              /* #ffffff */
+    --card-foreground: 60 2% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 60 2% 17%;
+
+    --primary: 210 75% 37%;         /* #185FA5 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 47 18% 89%;        /* #e8e6df */
+    --secondary-foreground: 60 2% 17%;
+
+    --muted: 47 18% 89%;
+    --muted-foreground: 30 3% 35%;  /* #5a5854 */
+
+    --accent: 210 75% 37%;          /* light theme accent = BLUE */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 65% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 45 11% 79%;           /* #d0cdc5 */
+    --input: 45 11% 79%;
+    --ring: 210 75% 37%;
+
+    --radius: 0.625rem;
+
+    /* Extended */
+    --blue-primary: 210 75% 37%;
+    --blue-dark: 210 82% 27%;
+    --green-primary: 161 69% 37%;
+    --green-dark: 165 76% 25%;
+
+    --surface: 47 18% 89%;          /* #e8e6df */
+    --surface-elevated: 0 0% 100%;
+    --surface-deep: 45 16% 84%;     /* #dddad2 */
+
+    --profit: 161 69% 37%;
+    --loss: 0 65% 48%;
+    --amber: 38 100% 35%;           /* #b07200 */
+    --info-blue: 210 75% 37%;
+
+    --muted-strong: 30 4% 33%;
+
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Inter', sans-serif;
+  }
+
+  /* ═══════════ DARK MODE ═══════════ */
+  /* bg: #2C2C2A / bg2: #1e1e1c / bg3: #3D3D3B / bg4: #343432
+     text: #F1EFE8 / text2: #b8b4aa / text3: #7a7870 — accent = green */
+  .dark {
+    --background: 60 2% 17%;        /* #2C2C2A */
+    --foreground: 47 24% 93%;       /* #F1EFE8 */
+
+    --card: 60 4% 12%;              /* #1e1e1c */
+    --card-foreground: 47 24% 93%;
+
+    --popover: 60 4% 12%;
+    --popover-foreground: 47 24% 93%;
+
+    --primary: 210 75% 37%;
+    --primary-foreground: 47 24% 93%;
+
+    --secondary: 60 2% 24%;         /* #3D3D3B */
+    --secondary-foreground: 40 12% 70%;
+
+    --muted: 60 2% 20%;             /* #343432 */
+    --muted-foreground: 38 11% 70%; /* #b8b4aa */
+
+    --accent: 161 69% 37%;          /* dark theme accent = GREEN */
+    --accent-foreground: 47 24% 93%;
+
+    --destructive: 0 86% 64%;       /* #f05252 */
+    --destructive-foreground: 47 24% 93%;
+
+    --border: 60 3% 23%;            /* #3a3a38 */
+    --input: 60 3% 23%;
+    --ring: 161 69% 37%;
+
+    --surface: 60 2% 24%;
+    --surface-elevated: 60 4% 12%;
+    --surface-deep: 60 2% 20%;
+
+    --profit: 161 69% 42%;
+    --loss: 0 86% 64%;              /* #f05252 */
+    --amber: 36 91% 55%;            /* #f5a623 */
+    --info-blue: 210 75% 50%;
+
+    --muted-strong: 38 11% 75%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  .font-display {
+    font-family: var(--font-sans);
+  }
+
+  .surface-elevated {
+    background: hsl(var(--surface-elevated));
+  }
+
+  .surface-deep {
+    background: hsl(var(--surface-deep));
+  }
+
+  /* Hairline borders like the reference */
+  .border-hairline {
+    border-width: 0.5px;
+  }
+}
