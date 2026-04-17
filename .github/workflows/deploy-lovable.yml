@@ -1,0 +1,44 @@
+name: Build & Deploy FII Guia React App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/lovable/**'
+  workflow_dispatch:   # allows manual trigger from GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: docs/lovable/package-lock.json
+
+      - name: Install dependencies
+        working-directory: docs/lovable
+        run: npm ci
+
+      - name: Build
+        working-directory: docs/lovable
+        env:
+          VITE_BASE: /b3/lovable/
+        run: npm run build -- --base=/b3/lovable/
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/lovable/dist
+          destination_dir: lovable
+          keep_files: true   # don't wipe the rest of gh-pages (fundo.html etc.)
