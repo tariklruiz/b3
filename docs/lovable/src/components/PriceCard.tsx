@@ -41,21 +41,21 @@ export function PriceCard({ fund }: { fund: FundData }) {
 
       {/* P/VP */}
       <div className="mt-7 pt-6 border-t border-border">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2">
-            <SecLabel className="!mb-0">P/VP</SecLabel>
-            <Tip text="Preço dividido pelo valor patrimonial da cota. Abaixo de 1,0 = comprando com desconto. Analise com a saúde: desconto em fundo saudável pode ser oportunidade; em fundo com alerta pode ser merecido." />
-          </div>
-          <span className="text-2xl font-bold text-foreground tabular-nums font-mono">
+        <div className="flex items-center gap-2 mb-2">
+          <SecLabel className="!mb-0">P/VP</SecLabel>
+          <Tip text="Preço dividido pelo valor patrimonial da cota. Abaixo de 1,0 = comprando com desconto. Analise com a saúde: desconto em fundo saudável pode ser oportunidade; em fundo com alerta pode ser merecido." />
+        </div>
+        <div className="flex items-baseline gap-3 mt-1">
+          <span className="text-4xl sm:text-[44px] font-bold text-foreground tabular-nums tracking-tight leading-none">
             {fund.pvp != null ? fund.pvp.toFixed(2) : '—'}
           </span>
+          {fund.pvp != null && (
+            <span className="text-xs text-muted-foreground">
+              {fund.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(Number(pvpDiscount))}%`} sobre o valor patrimonial
+            </span>
+          )}
         </div>
-        {fund.pvp != null && (
-          <p className="text-xs text-muted-foreground mb-4">
-            {fund.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(Number(pvpDiscount))}%`} sobre o valor patrimonial
-          </p>
-        )}
-        <div className="relative h-2.5 w-full bg-secondary rounded-full overflow-hidden">
+        <div className="relative h-2.5 w-full bg-secondary rounded-full overflow-hidden mt-4">
           <div
             className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700 ease-out"
             style={{ width: `${pvpFillWidth}%` }}
