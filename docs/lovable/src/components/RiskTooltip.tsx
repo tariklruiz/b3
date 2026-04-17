@@ -27,10 +27,11 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       const tooltipWidth = 420
+      // Position below the button, right-aligned to button's right edge
       let left = rect.left
-      if (left + tooltipWidth > window.innerWidth - 10) {
-        left = window.innerWidth - tooltipWidth - 10
-      }
+      // Clamp to viewport
+      if (left < 10) left = 10
+      if (left + tooltipWidth > window.innerWidth - 10) left = window.innerWidth - tooltipWidth - 10
       setPos({ top: rect.bottom + 8, left })
     }
     setOpen(o => !o)
