@@ -48,11 +48,11 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
   }, [open])
 
   return (
-    <div className="relative inline-flex items-center">
+    <>
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className="w-[15px] h-[15px] rounded-full surface-deep border border-hairline border-border text-[9px] font-mono text-muted-foreground/80 flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors"
+        className="w-[15px] h-[15px] rounded-full bg-secondary border border-border text-[9px] font-mono text-muted-foreground/80 flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors"
         aria-label="Detalhes do cálculo de risco"
       >
         ?
@@ -60,9 +60,9 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-[99]" onClick={() => setOpen(false)} />
           <div
-            className="fixed z-50 min-w-[380px] max-w-[460px] bg-card border border-border rounded-[10px] p-4 shadow-2xl"
+            className="fixed z-[100] min-w-[380px] max-w-[460px] bg-card border border-border rounded-[10px] p-4 shadow-2xl"
             style={{ top: pos.top, left: pos.left }}
           >
             <p className="text-[13px] font-medium text-foreground mb-1.5">como calculamos o risco</p>
@@ -112,13 +112,12 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
                 {nLow} sinal(is) baixo · {nMed} médio · {nHi} alto
               </p>
             </div>
-
             <p className="text-[9px] text-muted-foreground/50 font-mono mt-2">
               Vacância e risco de default em breve.
             </p>
           </div>
         </>
       )}
-    </div>
+    </>
   )
 }
