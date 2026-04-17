@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { type FundData, buildRiskSignals } from '@/lib/fii-helpers'
 
 const scoreColors = ['text-profit', 'text-amber', 'text-loss']
@@ -6,6 +6,8 @@ const scoreBg = ['bg-profit', 'bg-amber', 'bg-loss']
 
 export function RiskTooltip({ fund }: { fund: FundData }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
   const signals = buildRiskSignals(fund)
 
   let totalPts = 0, nLow = 0, nMed = 0, nHi = 0
@@ -21,19 +23,48 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
   const riskColor = totalPts <= 3 ? 'text-profit' : totalPts <= 7 ? 'text-amber' : 'text-loss'
   const riskLabel = totalPts <= 3 ? 'baixo' : totalPts <= 7 ? 'médio' : 'alto'
 
+  function handleOpen() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      const tooltipWidth = 420
+      let left = rect.left
+      if (left + tooltipWidth > window.innerWidth - 10) {
+        left = window.innerWidth - tooltipWidth - 10
+      }
+      setPos({ top: rect.bottom + 8, left })
+    }
+    setOpen(o => !o)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
+
   return (
     <div className="relative inline-flex items-center">
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleOpen}
         className="w-[15px] h-[15px] rounded-full surface-deep border border-hairline border-border text-[9px] font-mono text-muted-foreground/80 flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors"
         aria-label="Detalhes do cálculo de risco"
       >
         ?
       </button>
+
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-6 z-50 min-w-[380px] max-w-[460px] surface-elevated border border-hairline border-border rounded-[10px] p-4 shadow-2xl">
+          <div
+            className="fixed z-50 min-w-[380px] max-w-[460px] bg-card border border-border rounded-[10px] p-4 shadow-2xl"
+            style={{ top: pos.top, left: pos.left }}
+          >
             <p className="text-[13px] font-medium text-foreground mb-1.5">como calculamos o risco</p>
             <p className="text-[10px] text-muted-foreground mb-0.5">Cada sinal recebe 0 pts (baixo), 1 pt (médio) ou 2 pts (alto).</p>
             <p className="text-[10px] text-muted-foreground mb-3">Total: 0–3 = baixo · 4–7 = médio · 8+ = alto.</p>
@@ -73,8 +104,7 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
               </tbody>
             </table>
 
-            {/* Score summary */}
-            <div className="mt-3 pt-2.5 border-t border-hairline border-border">
+            <div className="mt-3 pt-2.5 border-t border-border">
               <p className={`text-[12px] font-bold ${riskColor}`}>
                 Pontuação: {totalPts} pts → risco {riskLabel}
               </p>
