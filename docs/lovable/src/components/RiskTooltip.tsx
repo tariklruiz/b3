@@ -8,8 +8,15 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
   const [open, setOpen] = useState(false)
   const signals = buildRiskSignals(fund)
 
-  let totalPts = 0
-  signals.forEach(s => { if (s.score !== null) totalPts += s.score })
+  let totalPts = 0, nLow = 0, nMed = 0, nHi = 0
+  signals.forEach(s => {
+    if (s.score !== null) {
+      totalPts += s.score
+      if (s.score === 0) nLow++
+      else if (s.score === 1) nMed++
+      else nHi++
+    }
+  })
 
   const riskColor = totalPts <= 3 ? 'text-profit' : totalPts <= 7 ? 'text-amber' : 'text-loss'
   const riskLabel = totalPts <= 3 ? 'baixo' : totalPts <= 7 ? 'médio' : 'alto'
@@ -26,7 +33,7 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-6 z-50 min-w-[360px] max-w-[460px] surface-elevated border border-hairline border-border rounded-[10px] p-4 shadow-2xl">
+          <div className="absolute left-0 top-6 z-50 min-w-[380px] max-w-[460px] surface-elevated border border-hairline border-border rounded-[10px] p-4 shadow-2xl">
             <p className="text-[13px] font-medium text-foreground mb-1.5">como calculamos o risco</p>
             <p className="text-[10px] text-muted-foreground mb-0.5">Cada sinal recebe 0 pts (baixo), 1 pt (médio) ou 2 pts (alto).</p>
             <p className="text-[10px] text-muted-foreground mb-3">Total: 0–3 = baixo · 4–7 = médio · 8+ = alto.</p>
@@ -34,11 +41,11 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
             <table className="w-full text-[10px] font-mono">
               <thead>
                 <tr className="text-muted-foreground/70 text-[9px]">
-                  <td className="pb-2 border-b border-border pr-2">Sinal</td>
-                  <td className="pb-2 border-b border-border text-right pr-2">Valor</td>
-                  <td className="pb-2 border-b border-border text-center px-1">Baixo</td>
-                  <td className="pb-2 border-b border-border text-center px-1">Médio</td>
-                  <td className="pb-2 border-b border-border text-center px-1">Alto</td>
+                  <td className="pb-2 border-b border-border pr-2 whitespace-nowrap">Sinal</td>
+                  <td className="pb-2 border-b border-border text-right pr-2 whitespace-nowrap">Valor</td>
+                  <td className="pb-2 border-b border-border text-center px-1 whitespace-nowrap">Baixo (0)</td>
+                  <td className="pb-2 border-b border-border text-center px-1 whitespace-nowrap">Médio (1)</td>
+                  <td className="pb-2 border-b border-border text-center px-1 whitespace-nowrap">Alto (2)</td>
                 </tr>
               </thead>
               <tbody>
@@ -66,9 +73,19 @@ export function RiskTooltip({ fund }: { fund: FundData }) {
               </tbody>
             </table>
 
+            {/* Score summary */}
             <div className="mt-3 pt-2.5 border-t border-hairline border-border">
-              <p className={`text-[12px] font-bold ${riskColor}`}>Pontuação: {totalPts} pts → risco {riskLabel}</p>
+              <p className={`text-[12px] font-bold ${riskColor}`}>
+                Pontuação: {totalPts} pts → risco {riskLabel}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 font-mono mt-1">
+                {nLow} sinal(is) baixo · {nMed} médio · {nHi} alto
+              </p>
             </div>
+
+            <p className="text-[9px] text-muted-foreground/50 font-mono mt-2">
+              Vacância e risco de default em breve.
+            </p>
           </div>
         </>
       )}

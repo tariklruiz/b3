@@ -61,6 +61,27 @@ export function fmtMes(s: string | null) {
   return s
 }
 
+export interface GestorData {
+  ticker: string
+  competencia: string
+  classificacao: string | null
+  tom_gestor: string | null
+  pl_total_brl: number | null
+  cota_mercado: number | null
+  cota_patrimonial: number | null
+  spread_credito_bps: number | null
+  ltv_medio: number | null
+  resultado_por_cota: number | null
+  distribuicao_por_cota: number | null
+  reserva_monetaria_brl: number | null
+  contexto_meses: { mes: string; resultado: number; distribuicao: number; reserva_brl: number | null }[]
+  cris_em_observacao: { nome: string; codigo: string; status: string; nivel: string }[]
+  mudancas_portfolio: string | null
+  resumo: string | null
+  alertas_dados: string | null
+  processado_em: string | null
+}
+
 export interface FundData {
   ticker: string
   nome: string
@@ -105,33 +126,38 @@ export interface FundData {
   dy_anual: number
   _div_yoy: number
   bench_hint: string | null
+  bench_median_mensal: number | null
 
   cdi_anual: number
 
-  gestor_resumo: string | null
-  gestor_tom: string | null
-  gestor_mes: string | null
+  gestor: GestorData | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function calcRisco(div: any, vol: any, preco: any): string {
   let score = 0
+
+  // 1. Volatility 90d
   const v90 = vol['90d'] ?? 0
   if (v90 > 0.25) score += 2
   else if (v90 > 0.15) score += 1
 
+  // 2. Dividend consistency — use 0.999 threshold to avoid floating point bug
   const consistency = div.consistencia.pct ?? 1
   if (consistency < 0.85) score += 2
-  else if (consistency < 1.00) score += 1
+  else if (consistency < 0.999) score += 1
 
+  // 3. Dividend value YoY
   const divYoy = div._yoy_valor ?? 0
   if (divYoy < -0.10) score += 2
   else if (divYoy < -0.03) score += 1
 
+  // 4. Liquidity 30d
   const liq30 = preco.liquidez?.['30d'] ?? 0
   if (liq30 < 5000) score += 2
   else if (liq30 < 20000) score += 1
 
+  // 5–8. Price variations
   const v = preco.variacao
   const d30 = v.d30 ?? 0
   if (d30 < -0.11) score += 2
@@ -155,7 +181,7 @@ export function calcRisco(div: any, vol: any, preco: any): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function buildFundData(ticker: string, preco: any, div: any, informe: any, benchData: any, cdiData: any): FundData {
+export function buildFundData(ticker: string, preco: any, div: any, informe: any, benchData: any, cdiData: any, gestorData: any): FundData {
   const CDI_MENSAL = 0.0087
   const v = preco.variacao
   const vol = preco.volatilidade
@@ -170,6 +196,7 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     ? [informe.classificacao, informe.subclassificacao].filter(Boolean).join(' · ')
     : '—'
 
+  // Dividend value YoY: last payment vs first in 13-month window
   const hist = div.historico
   if (hist.length >= 2) {
     const last = hist[hist.length - 1].valor_provento
@@ -187,9 +214,12 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     ? `mediana ${classificacao}: ${fmtPctAbs(bench.mediana_dy_mensal)}/mês · ${fmtPctAbs(bench.mediana_dy_anual)}/ano (${bench.n_fundos} fundos)`
     : null
 
+  // suppress unused variable warning
+  void cdiMensal
+
   return {
     ticker,
-    nome: informe ? fmtNome(informe.nome) : ticker,
+    nome: informe ? (fmtNome(informe.nome) ?? ticker) : ticker,
     segmento,
     administrador: informe ? informe.administrador : null,
     cotistas: informe ? informe.cotistas : null,
@@ -236,12 +266,11 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     dy_anual: div.dy.anual ?? 0,
     _div_yoy: div._yoy_valor ?? 0,
     bench_hint: benchHint,
+    bench_median_mensal: bench ? bench.mediana_dy_mensal : null,
 
     cdi_anual: cdiData ? cdiData.cdi_anual : CDI_MENSAL * 12,
 
-    gestor_resumo: null,
-    gestor_tom: null,
-    gestor_mes: null,
+    gestor: gestorData ?? null,
   }
 }
 
@@ -265,16 +294,18 @@ export function buildRiskSignals(f: FundData) {
     return 0
   }
 
+  // Fix: use 0.999 threshold to avoid floating point bug on 13/13 = 0.9999...
   const consistency = f.div_total > 0 ? f.div_pagos / f.div_total : 1
+  const consistencyScore = consistency >= 0.999 ? 0 : (consistency >= 0.85 ? 1 : 2)
 
   return [
-    { name: 'Volatilidade 90d', val: f.vol_90d, score: sigScoreHigh(f.vol_90d, 0.15, 0.25), fmt: (v: number) => fmtPctAbs(v), low: '< 15%', med: '15–25%', hi: '> 25%' },
-    { name: 'Consistência div.', val: consistency, score: sigScoreHigh(1 - consistency, 0, 0.15), fmt: (v: number) => Math.round(v * 100) + '%', low: '100%', med: '85–99%', hi: '< 85%' },
-    { name: 'Dividendo YoY', val: f._div_yoy, score: sigScore(f._div_yoy, -0.03, -0.10), fmt: (v: number) => fmtPct(v), low: '> -3%', med: '-3% a -10%', hi: '< -10%' },
-    { name: 'Liquidez 30d', val: f.liq_30d, score: liqScoreInv(f.liq_30d), fmt: (v: number) => fmtK(Math.round(v)), low: '> 20k', med: '5k–20k', hi: '< 5k' },
-    { name: 'Preço D-30', val: f.preco_d30, score: sigScore(f.preco_d30, -0.07, -0.11), fmt: (v: number) => fmtPct(v), low: '> -3%', med: '-3% a -7%', hi: '< -11%' },
-    { name: 'Preço D-180', val: f.preco_d180, score: sigScore(f.preco_d180, -0.08, -0.12), fmt: (v: number) => fmtPct(v), low: '> -4%', med: '-4% a -8%', hi: '< -12%' },
-    { name: 'Preço 12M', val: f.preco_12m, score: sigScore(f.preco_12m, -0.09, -0.13), fmt: (v: number) => fmtPct(v), low: '> -5%', med: '-5% a -9%', hi: '< -13%' },
-    { name: 'Preço 24M', val: f.preco_24m, score: sigScore(f.preco_24m, -0.10, -0.14), fmt: (v: number) => fmtPct(v), low: '> -6%', med: '-6% a -10%', hi: '< -14%' },
+    { name: 'Volatilidade 90d',  val: f.vol_90d,    score: sigScoreHigh(f.vol_90d, 0.15, 0.25),   fmt: (v: number) => fmtPctAbs(v), low: '< 15%',  med: '15–25%',     hi: '> 25%'   },
+    { name: 'Consistência div.', val: consistency,   score: consistencyScore,                       fmt: (v: number) => Math.round(v * 100) + '%', low: '100%', med: '85–99%', hi: '< 85%' },
+    { name: 'Dividendo YoY',     val: f._div_yoy,   score: sigScore(f._div_yoy, -0.03, -0.10),    fmt: (v: number) => fmtPct(v),    low: '> -3%',  med: '-3% a -10%', hi: '< -10%'  },
+    { name: 'Liquidez 30d',      val: f.liq_30d,    score: liqScoreInv(f.liq_30d),                fmt: (v: number) => fmtK(Math.round(v)), low: '> 20k', med: '5k–20k', hi: '< 5k' },
+    { name: 'Preço D-30',        val: f.preco_d30,  score: sigScore(f.preco_d30,  -0.07, -0.11),  fmt: (v: number) => fmtPct(v),    low: '> -3%',  med: '-3% a -7%',  hi: '< -11%'  },
+    { name: 'Preço D-180',       val: f.preco_d180, score: sigScore(f.preco_d180, -0.08, -0.12),  fmt: (v: number) => fmtPct(v),    low: '> -4%',  med: '-4% a -8%',  hi: '< -12%'  },
+    { name: 'Preço 12M',         val: f.preco_12m,  score: sigScore(f.preco_12m,  -0.09, -0.13),  fmt: (v: number) => fmtPct(v),    low: '> -5%',  med: '-5% a -9%',  hi: '< -13%'  },
+    { name: 'Preço 24M',         val: f.preco_24m,  score: sigScore(f.preco_24m,  -0.10, -0.14),  fmt: (v: number) => fmtPct(v),    low: '> -6%',  med: '-6% a -10%', hi: '< -14%'  },
   ]
 }

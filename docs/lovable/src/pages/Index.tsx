@@ -27,36 +27,38 @@ export default function Index() {
     setLoading(true)
 
     try {
-      const [precoRes, divRes, informeRes, benchRes, cdiRes] = await Promise.all([
+      const [precoRes, divRes, informeRes, benchRes, cdiRes, gestorRes] = await Promise.all([
         fetch(`${API_BASE}/fundo/preco?ticker=${ticker}`),
         fetch(`${API_BASE}/fundo/dividendos?ticker=${ticker}`),
         fetch(`${API_BASE}/fundo/informe?ticker=${ticker}`),
         fetch(`${API_BASE}/benchmarks`),
         fetch(`${API_BASE}/cdi`),
+        fetch(`${API_BASE}/fundo/gestor?ticker=${ticker}`),
       ])
 
       if (!precoRes.ok) {
         const err = await precoRes.json().catch(() => ({}))
-        throw new Error(err.detail || `Fundo ${ticker} não encontrado`)
+        throw new Error((err as { detail?: string }).detail || `Fundo ${ticker} não encontrado`)
       }
       if (!divRes.ok) {
         const err = await divRes.json().catch(() => ({}))
-        throw new Error(err.detail || `Dividendos para ${ticker} não encontrados`)
+        throw new Error((err as { detail?: string }).detail || `Dividendos para ${ticker} não encontrados`)
       }
 
-      const preco = await precoRes.json()
-      const div = await divRes.json()
-      const informe = informeRes.ok ? await informeRes.json() : null
-      const benchData = benchRes.ok ? await benchRes.json() : null
-      const cdiData = cdiRes.ok ? await cdiRes.json() : null
+      const preco    = await precoRes.json()
+      const div      = await divRes.json()
+      const informe  = informeRes.ok  ? await informeRes.json()  : null
+      const benchData = benchRes.ok   ? await benchRes.json()    : null
+      const cdiData  = cdiRes.ok      ? await cdiRes.json()      : null
+      const gestorData = gestorRes.ok ? await gestorRes.json()   : null
 
-      const f = buildFundData(ticker, preco, div, informe, benchData, cdiData)
+      const f = buildFundData(ticker, preco, div, informe, benchData, cdiData, gestorData)
       setFund(f)
 
       document.title = `${ticker} — FII Guia`
       history.pushState({}, '', `?ticker=${ticker}`)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }

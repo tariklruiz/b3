@@ -1,13 +1,41 @@
 import { type FundData, fmtBRL, fmtPctAbs, waffleColor } from '@/lib/fii-helpers'
 import { SecLabel } from './PriceCard'
 
+function BenchmarkBadge({ fund }: { fund: FundData }) {
+  if (fund.bench_median_mensal == null || fund.dy_anual == null) return null
+
+  const dyMensal = fund.dy_anual / 12
+  const diff = dyMensal - fund.bench_median_mensal
+  const tol  = fund.bench_median_mensal * 0.03
+
+  if (diff > tol) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border border-profit/40 bg-profit/10 text-profit">
+        acima do benchmark
+      </span>
+    )
+  } else if (diff < -tol) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border border-amber/40 bg-amber/10 text-amber">
+        abaixo do benchmark
+      </span>
+    )
+  } else {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border border-primary/40 bg-primary/10 text-primary">
+        igual ao benchmark
+      </span>
+    )
+  }
+}
+
 export function DividendCard({ fund }: { fund: FundData }) {
   const pct = Math.round(fund.div_pagos / fund.div_total * 100)
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm transition-colors overflow-hidden">
       <div className="flex flex-col md:flex-row items-stretch">
-        {/* Left: last dividend + waffle */}
+        {/* Left: last dividend + waffle + legend */}
         <div className="flex-1 min-w-0 p-6 sm:p-7">
           <SecLabel>Dividendos — últimos 13 meses</SecLabel>
           <p className="text-[11px] text-muted-foreground mb-1">último dividendo</p>
@@ -50,19 +78,19 @@ export function DividendCard({ fund }: { fund: FundData }) {
           <div className="mt-4">
             <div className="text-[9px] font-semibold text-muted-foreground/70 uppercase tracking-wider font-mono mb-2">Legenda de cores</div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] text-muted-foreground font-mono w-fit">
-              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-info-blue" />igual ao mês anterior</span>
-              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-profit" />maior que o mês anterior</span>
-              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-amber" />menor que o mês anterior</span>
-              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-loss" />sem pagamento no mês</span>
+              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-info-blue flex-shrink-0" />igual ao mês anterior</span>
+              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-profit flex-shrink-0" />maior que o mês anterior</span>
+              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-amber flex-shrink-0" />menor que o mês anterior</span>
+              <span className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-loss flex-shrink-0" />sem pagamento no mês</span>
             </div>
           </div>
         </div>
 
-        {/* Vertical divider */}
+        {/* Vertical divider (desktop only) */}
         <div className="hidden md:block w-px bg-border self-stretch flex-shrink-0" />
         <div className="md:hidden h-px bg-border" />
 
-        {/* Right: DY */}
+        {/* Right: Dividend Yield + benchmark */}
         <div className="md:flex-shrink-0 p-6 sm:p-7">
           <SecLabel>Dividend Yield</SecLabel>
           <div className="flex items-baseline gap-5 mt-2">
@@ -78,6 +106,9 @@ export function DividendCard({ fund }: { fund: FundData }) {
           </div>
           <p className="text-[10px] text-muted-foreground/70 font-mono mt-2">soma dos últimos 12 dividendos / preço atual</p>
           {fund.bench_hint && <p className="text-[10px] text-muted-foreground font-mono mt-1">{fund.bench_hint}</p>}
+          <div className="mt-2">
+            <BenchmarkBadge fund={fund} />
+          </div>
         </div>
       </div>
     </div>
