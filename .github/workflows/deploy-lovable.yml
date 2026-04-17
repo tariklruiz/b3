@@ -4,8 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'docs/lovable/**'
-  workflow_dispatch:   # allows manual trigger from GitHub Actions tab
+      - 'docs/lovable/src/**'
+      - 'docs/lovable/index.html'
+      - 'docs/lovable/vite.config.ts'
+      - 'docs/lovable/package.json'
+      - '.github/workflows/deploy-lovable.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,14 +35,17 @@ jobs:
 
       - name: Build
         working-directory: docs/lovable
-        env:
-          VITE_BASE: /b3/lovable/
-        run: npm run build -- --base=/b3/lovable/
+        run: npm run build -- --base=/b3/lovable-dist/
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs/lovable/dist
-          destination_dir: lovable
-          keep_files: true   # don't wipe the rest of gh-pages (fundo.html etc.)
+      - name: Copy build output to docs/lovable-dist
+        run: |
+          rm -rf docs/lovable-dist
+          cp -r docs/lovable/dist docs/lovable-dist
+
+      - name: Commit and push built files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/lovable-dist
+          git diff --staged --quiet || git commit -m "chore: deploy built React app [skip ci]"
+          git push
