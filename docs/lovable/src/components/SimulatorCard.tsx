@@ -17,13 +17,13 @@ export function SimulatorCard({ fund }: { fund: FundData }) {
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <SecLabel className="!mb-0 flex-1 min-w-[120px]">Simulador</SecLabel>
         <div className="flex items-center gap-2.5">
-          <span className="text-xs text-muted-foreground">investimento</span>
+          <span className="text-xs text-muted-foreground font-mono">investimento</span>
           <div className="flex items-center bg-secondary border border-border rounded-lg h-[34px] px-3 gap-1.5 focus-within:border-primary/40 transition-all">
             <span className="text-xs text-muted-foreground font-mono">R$</span>
             <input
               type="number" min={100} step={1000} value={investimento}
               onChange={(e) => setInvestimento(Math.max(0, parseFloat(e.target.value) || 0))}
-              className="w-[90px] bg-transparent border-none outline-none font-mono text-sm text-foreground text-right"
+              className="w-[90px] bg-transparent border-none outline-none font-mono text-sm text-foreground text-right tabular-nums"
             />
           </div>
         </div>
@@ -50,8 +50,8 @@ export function SimulatorCard({ fund }: { fund: FundData }) {
 function SimSurface({ label, value, sub, highlight }: { label: string; value: string; sub: string; highlight?: boolean }) {
   return (
     <div className={`bg-secondary border rounded-lg p-4 transition-colors ${highlight ? 'border-accent/30 hover:border-accent/50' : 'border-border'}`}>
-      <p className="text-[10px] text-muted-foreground leading-snug">{label}</p>
-      <p className={`text-xl font-bold mt-2 tabular-nums ${highlight ? 'text-accent' : 'text-foreground'}`}>{value}</p>
+      <p className="text-[10px] text-muted-foreground leading-snug font-mono">{label}</p>
+      <p className={`text-xl font-bold mt-2 tabular-nums font-mono ${highlight ? 'text-accent' : 'text-foreground'}`}>{value}</p>
       <p className="text-[10px] text-muted-foreground/70 font-mono mt-1">{sub}</p>
     </div>
   )
@@ -61,7 +61,7 @@ function SimSurfaceGrossup({ grossup, anual }: { grossup: string | null; anual: 
   return (
     <div className="bg-secondary border border-border rounded-lg p-4 transition-colors">
       <div className="flex items-center gap-1.5">
-        <p className="text-[10px] text-muted-foreground">equiv. renda fixa 12M</p>
+        <p className="text-[10px] text-muted-foreground font-mono">equiv. renda fixa 12M</p>
         <div className="group/gt relative inline-flex">
           <div className="w-4 h-4 rounded-full bg-muted border border-border text-[9px] font-mono text-muted-foreground flex items-center justify-center cursor-help hover:border-primary/40 hover:text-primary transition-colors">?</div>
           <div className="hidden group-hover/gt:block absolute left-0 top-6 z-50 w-[280px] bg-card border border-border rounded-xl p-4 text-xs text-foreground leading-relaxed shadow-xl">
@@ -83,7 +83,7 @@ function SimSurfaceGrossup({ grossup, anual }: { grossup: string | null; anual: 
           </div>
         </div>
       </div>
-      <p className="text-xl font-bold text-foreground mt-2 tabular-nums">{grossup != null ? `${grossup}% CDI` : '—'}</p>
+      <p className="text-xl font-bold text-foreground mt-2 tabular-nums font-mono">{grossup != null ? `${grossup}% CDI` : '—'}</p>
       <p className="text-[10px] text-muted-foreground/70 font-mono mt-1">gross-up 20% · 181–360d</p>
     </div>
   )
