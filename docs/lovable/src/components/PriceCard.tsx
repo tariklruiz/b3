@@ -10,6 +10,11 @@ const pills = [
 ]
 
 export function PriceCard({ fund }: { fund: FundData }) {
+  const pvpDiscount = fund.pvp != null ? ((1 - fund.pvp) * 100).toFixed(0) : null
+  const pvpFillWidth = fund.pvp != null
+    ? Math.max(0, Math.min(100, ((fund.pvp - 0.70) / (1.30 - 0.70) * 100))).toFixed(1)
+    : '0'
+
   return (
     <div className="relative bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm transition-colors overflow-hidden">
       {/* Top accent line */}
@@ -32,6 +37,36 @@ export function PriceCard({ fund }: { fund: FundData }) {
             <div className={`text-sm font-mono font-semibold mt-1 ${pctColor(fund[p.key])}`}>{fmtPct(fund[p.key])}</div>
           </div>
         ))}
+      </div>
+
+      {/* P/VP */}
+      <div className="mt-7 pt-6 border-t border-border">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-2">
+            <SecLabel className="!mb-0">P/VP</SecLabel>
+            <Tip text="Preço dividido pelo valor patrimonial da cota. Abaixo de 1,0 = comprando com desconto. Analise com a saúde: desconto em fundo saudável pode ser oportunidade; em fundo com alerta pode ser merecido." />
+          </div>
+          <span className="text-2xl font-bold text-foreground tabular-nums font-mono">
+            {fund.pvp != null ? fund.pvp.toFixed(2) : '—'}
+          </span>
+        </div>
+        {fund.pvp != null && (
+          <p className="text-xs text-muted-foreground mb-4">
+            {fund.pvp < 1 ? `desconto de ${pvpDiscount}%` : `prêmio de ${Math.abs(Number(pvpDiscount))}%`} sobre o valor patrimonial
+          </p>
+        )}
+        <div className="relative h-2.5 w-full bg-secondary rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700 ease-out"
+            style={{ width: `${pvpFillWidth}%` }}
+          />
+          <div className="absolute top-0 left-1/2 w-[2px] h-full bg-foreground/25 rounded-full" />
+        </div>
+        <div className="flex justify-between mt-2 text-[9px] text-muted-foreground font-mono">
+          <span>0,70 — desconto</span>
+          <span className="text-foreground/60 font-semibold">1,00 = justo</span>
+          <span>1,30 — prêmio</span>
+        </div>
       </div>
     </div>
   )
