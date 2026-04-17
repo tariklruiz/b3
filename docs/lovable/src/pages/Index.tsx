@@ -56,7 +56,7 @@ export default function Index() {
       setFund(f)
 
       document.title = `${ticker} — FII Guia`
-      history.pushState({}, '', `?ticker=${ticker}`)
+      window.location.hash = `?ticker=${ticker}`
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -65,7 +65,8 @@ export default function Index() {
   }, [])
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
+    const hash = window.location.hash.replace('#', '')
+    const params = new URLSearchParams(hash)
     const initialTicker = params.get('ticker') || 'MXRF11'
     loadFund(initialTicker)
   }, [loadFund])
