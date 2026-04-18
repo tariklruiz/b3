@@ -33,7 +33,7 @@ export function DividendCard({ fund }: { fund: FundData }) {
   const pct = Math.round(fund.div_pagos / fund.div_total * 100)
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm transition-colors overflow-hidden">
+    <div className="bg-card border border-border rounded-xl shadow-sm transition-colors">
       <div className="flex flex-col md:flex-row items-stretch">
         {/* Left: last dividend + waffle + legend */}
         <div className="flex-1 min-w-0 p-6 sm:p-7">
