@@ -13,8 +13,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   build-deploy:
@@ -39,10 +37,16 @@ jobs:
         working-directory: docs/lovable
         run: npm run build -- --base=/
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs/lovable/dist
-          destination_dir: lovable-dist
-          keep_files: true
+      - name: Deploy built files to docs/ root
+        run: |
+          # Copy built assets to docs/ root (overwrites old lovable-dist)
+          cp -r docs/lovable/dist/. docs/
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html docs/assets docs/*.js docs/*.css 2>/dev/null || true
+          git add docs/
+          git diff --staged --quiet || git commit -m "chore: deploy React app to docs/ [skip ci]"
+          git push
