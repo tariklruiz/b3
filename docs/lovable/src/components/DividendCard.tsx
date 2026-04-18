@@ -59,7 +59,7 @@ export function DividendCard({ fund }: { fund: FundData }) {
               const color = waffleColor(d.v, prev)
               return (
                 <div key={i} className="flex flex-col items-center gap-1 group relative min-w-[22px]">
-                  <div className="hidden group-hover:block absolute bottom-8 left-1/2 -translate-x-1/2 bg-card border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-foreground font-mono whitespace-nowrap z-10 shadow-lg">
+                  <div className="hidden group-hover:block absolute left-7 top-0 bg-card border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-foreground font-mono whitespace-nowrap z-50 shadow-lg">
                     {d.v !== null ? fmtBRL(d.v) : 'não pagou'}
                   </div>
                   <div
