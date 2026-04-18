@@ -24,9 +24,33 @@ from datetime import datetime, date, timedelta
 # ---------------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------------
-DB_PATH  = os.getenv("DB_PATH",  "data/b3.db")
+DB_PATH      = os.getenv("DB_PATH",      "data/b3.db")
 DIV_PATH     = os.getenv("DIV_PATH",     "data/dividendos.db")
 INFORME_PATH = os.getenv("INFORME_PATH", "data/informe_mensal.db")
+FUND_TYPES_PATH = os.getenv("FUND_TYPES_PATH", "data/fund_types.json")
+
+# ---------------------------------------------------------------------------
+# Fund classification — loaded from fund_types.json
+# Refreshed from disk at most once per hour (hot-reload without restart)
+# ---------------------------------------------------------------------------
+import json as _json_mod
+
+_fund_types_cache: dict = {"data": {}, "ts": 0}
+
+def get_fund_type(ticker: str) -> str | None:
+    """Return market classification for a ticker from fund_types.json."""
+    import time as _t
+    now = _t.time()
+    if now - _fund_types_cache["ts"] > 3600:
+        path = Path(FUND_TYPES_PATH)
+        if path.exists():
+            try:
+                raw = _json_mod.loads(path.read_text(encoding="utf-8"))
+                _fund_types_cache["data"] = raw.get("fundos", {})
+                _fund_types_cache["ts"] = now
+            except Exception:
+                pass
+    return _fund_types_cache["data"].get(ticker.upper())
 
 # ---------------------------------------------------------------------------
 # RATE LIMITER
@@ -428,21 +452,22 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
 
     r = dict(row)
     return {
-        "ticker":          t,
-        "cnpj":            cnpj,
-        "nome":            r["nome_fundo"],
-        "classificacao":   r["classificacao"],
-        "subclassificacao": r["subclassificacao"],
-        "tipo_gestao":     r["tipo_gestao"],
-        "administrador":   r["nome_administrador"],
-        "competencia":     r["competencia"],
-        "cotistas":        r["total_cotistas"],
-        "pl":              r["patrimonio_liquido"],
-        "cotas_emitidas":  r["num_cotas_emitidas"],
-        "nav_cota":        r["valor_patr_cotas"],
-        "tx_adm":          r["despesas_tx_adm"],
-        "dy_mes":          r["dividend_yield_mes"],
-        "rent_mensal":     r["rent_patr_mensal"],
+        "ticker":                 t,
+        "cnpj":                   cnpj,
+        "nome":                   r["nome_fundo"],
+        "classificacao":          r["classificacao"],
+        "classificacao_market":   get_fund_type(t),   # Papel/Tijolo/FOF/Híbrido from fund_types.json
+        "subclassificacao":       r["subclassificacao"],
+        "tipo_gestao":            r["tipo_gestao"],
+        "administrador":          r["nome_administrador"],
+        "competencia":            r["competencia"],
+        "cotistas":               r["total_cotistas"],
+        "pl":                     r["patrimonio_liquido"],
+        "cotas_emitidas":         r["num_cotas_emitidas"],
+        "nav_cota":               r["valor_patr_cotas"],
+        "tx_adm":                 r["despesas_tx_adm"],
+        "dy_mes":                 r["dividend_yield_mes"],
+        "rent_mensal":            r["rent_patr_mensal"],
         "rendimentos_distribuir": r["rendimentos_distribuir"],
     }
 
@@ -492,22 +517,8 @@ def _calc_benchmarks() -> dict:
     conn_div.close()
     div_map = {r["ticker"]: {"cnpj": r["cnpj_fundo"], "dy12": r["dy12_abs"]} for r in div_rows}
 
-    # 3. Latest classificacao per cnpj — use MAX(competencia) in a join
-    conn_inf = get_informe()
-    class_rows = conn_inf.execute("""
-        SELECT i.cnpj_fundo, i.classificacao
-        FROM informe_mensal i
-        INNER JOIN (
-            SELECT cnpj_fundo, MAX(competencia) AS max_comp
-            FROM informe_mensal
-            WHERE classificacao IS NOT NULL
-            GROUP BY cnpj_fundo
-        ) latest ON i.cnpj_fundo = latest.cnpj_fundo AND i.competencia = latest.max_comp
-        WHERE i.classificacao IS NOT NULL
-        GROUP BY i.cnpj_fundo
-    """).fetchall()
-    conn_inf.close()
-    cnpj_to_class = {r["cnpj_fundo"]: r["classificacao"] for r in class_rows}
+    # 3. Classification from fund_types.json (market standard: Papel/Tijolo/FOF/Híbrido)
+    #    get_fund_type() handles caching and hot-reload automatically
 
     # 4. Group DY by classificacao
     groups: dict = {}
@@ -515,8 +526,8 @@ def _calc_benchmarks() -> dict:
         preco = prices.get(ticker)
         if not preco or preco <= 0:
             continue
-        cls = cnpj_to_class.get(d["cnpj"])
-        if not cls:
+        cls = get_fund_type(ticker)
+        if not cls or cls == "Outros":
             continue
         dy_mensal = (d["dy12"] / preco) / 12
         groups.setdefault(cls, []).append(dy_mensal)

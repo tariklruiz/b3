@@ -192,8 +192,11 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     ? preco.preco / informe.nav_cota
     : null
 
+  // Segmento: market classification first (Papel/Tijolo/FOF), then CVM subclassification
+  const mktClass = informe?.classificacao_market
+  const subclass = informe?.subclassificacao
   const segmento = informe
-    ? [informe.classificacao, informe.subclassificacao].filter(Boolean).join(' · ')
+    ? [mktClass || informe.classificacao, subclass].filter(Boolean).join(' · ')
     : '—'
 
   // Dividend value YoY: last payment vs first in 13-month window
@@ -208,7 +211,11 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
 
   const benchmarks = benchData ? benchData.benchmarks : {}
   const cdiMensal = cdiData ? cdiData.cdi_mensal : CDI_MENSAL
-  const classificacao = informe ? informe.classificacao : null
+  // Use market classification (Papel/Tijolo/FOF/Híbrido) from fund_types.json
+  // Falls back to informe classificacao if market one not available
+  const classificacao = informe
+    ? (informe.classificacao_market || informe.classificacao)
+    : null
   const bench = classificacao ? benchmarks[classificacao] : null
   const benchHint = bench
     ? `mediana ${classificacao}: ${fmtPctAbs(bench.mediana_dy_mensal)}/mês · ${fmtPctAbs(bench.mediana_dy_anual)}/ano (${bench.n_fundos} fundos)`
