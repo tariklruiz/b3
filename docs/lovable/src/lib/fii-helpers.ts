@@ -137,27 +137,22 @@ export interface FundData {
 export function calcRisco(div: any, vol: any, preco: any): string {
   let score = 0
 
-  // 1. Volatility 90d
   const v90 = vol['90d'] ?? 0
   if (v90 > 0.25) score += 2
   else if (v90 > 0.15) score += 1
 
-  // 2. Dividend consistency — use 0.999 threshold to avoid floating point bug
   const consistency = div.consistencia.pct ?? 1
   if (consistency < 0.85) score += 2
   else if (consistency < 0.999) score += 1
 
-  // 3. Dividend value YoY
   const divYoy = div._yoy_valor ?? 0
   if (divYoy < -0.10) score += 2
   else if (divYoy < -0.03) score += 1
 
-  // 4. Liquidity 30d
   const liq30 = preco.liquidez?.['30d'] ?? 0
   if (liq30 < 5000) score += 2
   else if (liq30 < 20000) score += 1
 
-  // 5–8. Price variations
   const v = preco.variacao
   const d30 = v.d30 ?? 0
   if (d30 < -0.11) score += 2
@@ -192,14 +187,19 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     ? preco.preco / informe.nav_cota
     : null
 
-  // Segmento: market classification first (Papel/Tijolo/FOF), then CVM subclassification
+  // Use market classification (Papel/Tijolo/FOF/Híbrido) from fund_types.json
+  // Falls back to informe classificacao if market one not available
+  const classificacao = informe
+    ? (informe.classificacao_market || informe.classificacao)
+    : null
+
+  // Segmento: market classification first, then CVM subclassification
   const mktClass = informe?.classificacao_market
   const subclass = informe?.subclassificacao
   const segmento = informe
     ? [mktClass || informe.classificacao, subclass].filter(Boolean).join(' · ')
     : '—'
 
-  // Dividend value YoY: last payment vs first in 13-month window
   const hist = div.historico
   if (hist.length >= 2) {
     const last = hist[hist.length - 1].valor_provento
@@ -211,17 +211,11 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
 
   const benchmarks = benchData ? benchData.benchmarks : {}
   const cdiMensal = cdiData ? cdiData.cdi_mensal : CDI_MENSAL
-  // Use market classification (Papel/Tijolo/FOF/Híbrido) from fund_types.json
-  // Falls back to informe classificacao if market one not available
-  const classificacao = informe
-    ? (informe.classificacao_market || informe.classificacao)
-    : null
   const bench = classificacao ? benchmarks[classificacao] : null
   const benchHint = bench
     ? `mediana ${classificacao}: ${fmtPctAbs(bench.mediana_dy_mensal)}/mês · ${fmtPctAbs(bench.mediana_dy_anual)}/ano (${bench.n_fundos} fundos)`
     : null
 
-  // suppress unused variable warning
   void cdiMensal
 
   return {
@@ -301,7 +295,6 @@ export function buildRiskSignals(f: FundData) {
     return 0
   }
 
-  // Fix: use 0.999 threshold to avoid floating point bug on 13/13 = 0.9999...
   const consistency = f.div_total > 0 ? f.div_pagos / f.div_total : 1
   const consistencyScore = consistency >= 0.999 ? 0 : (consistency >= 0.85 ? 1 : 2)
 
