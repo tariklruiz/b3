@@ -28,6 +28,16 @@ DB_PATH      = os.getenv("DB_PATH",      "data/b3.db")
 DIV_PATH     = os.getenv("DIV_PATH",     "data/dividendos.db")
 INFORME_PATH = os.getenv("INFORME_PATH", "data/informe_mensal.db")
 FUND_TYPES_PATH = os.getenv("FUND_TYPES_PATH", "data/fund_types.json")
+GESTOR_PATH     = os.getenv("GESTOR_PATH",     "data/gestores.db")
+
+# ---------------------------------------------------------------------------
+def get_gestor_db():
+    db = Path(GESTOR_PATH)
+    if not db.exists():
+        return None
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # ---------------------------------------------------------------------------
 # Fund classification — loaded from fund_types.json
@@ -486,6 +496,63 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         "dy_mes":                 r["dividend_yield_mes"],
         "rent_mensal":            r["rent_patr_mensal"],
         "rendimentos_distribuir": r["rendimentos_distribuir"],
+    }
+
+
+@app.get("/fundo/gestor")
+@limiter.limit("30/minute")
+def get_fundo_gestor(request: Request, ticker: str = Query(...)):
+    """
+    Returns the latest management report summary for a given ticker from gestores.db.
+    """
+    t = validate_ticker(ticker)
+    conn = get_gestor_db()
+    if not conn:
+        raise HTTPException(status_code=503, detail="gestores.db not available")
+
+    row = conn.execute("""
+        SELECT ticker, competencia, classificacao, tom_gestor,
+               pl_total_brl, cota_mercado, cota_patrimonial,
+               spread_credito_bps, ltv_medio, resultado_por_cota,
+               distribuicao_por_cota, reserva_monetaria_brl,
+               vacancia_pct, contratos_vencer_12m_pct, cap_rate,
+               contexto_meses, cris_em_observacao, alocacao_fundos,
+               mudancas_portfolio, resumo, alertas_dados, processado_em
+        FROM gestores
+        WHERE ticker = ?
+        ORDER BY competencia DESC
+        LIMIT 1
+    """, (t,)).fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Nenhum relatório gerencial encontrado para {t}")
+
+    import json as _j
+    r = dict(row)
+    return {
+        "ticker":                    r["ticker"],
+        "competencia":               r["competencia"],
+        "classificacao":             r["classificacao"],
+        "tom_gestor":                r["tom_gestor"],
+        "pl_total_brl":              r["pl_total_brl"],
+        "cota_mercado":              r["cota_mercado"],
+        "cota_patrimonial":          r["cota_patrimonial"],
+        "spread_credito_bps":        r["spread_credito_bps"],
+        "ltv_medio":                 r["ltv_medio"],
+        "resultado_por_cota":        r["resultado_por_cota"],
+        "distribuicao_por_cota":     r["distribuicao_por_cota"],
+        "reserva_monetaria_brl":     r["reserva_monetaria_brl"],
+        "vacancia_pct":              r["vacancia_pct"],
+        "contratos_vencer_12m_pct":  r["contratos_vencer_12m_pct"],
+        "cap_rate":                  r["cap_rate"],
+        "contexto_meses":            _j.loads(r["contexto_meses"]) if r["contexto_meses"] else [],
+        "cris_em_observacao":        _j.loads(r["cris_em_observacao"]) if r["cris_em_observacao"] else [],
+        "alocacao_fundos":           _j.loads(r["alocacao_fundos"]) if r["alocacao_fundos"] else None,
+        "mudancas_portfolio":        r["mudancas_portfolio"],
+        "resumo":                    r["resumo"],
+        "alertas_dados":             r["alertas_dados"],
+        "processado_em":             r["processado_em"],
     }
 
 
