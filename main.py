@@ -161,6 +161,23 @@ def root():
     return {"status": "ok", "message": "Guia FII API is running"}
 
 
+@app.get("/debug")
+def debug_info():
+    import os, glob
+    path = Path(FUND_TYPES_PATH)
+    files_in_root = glob.glob("*.json")
+    files_in_data = glob.glob("data/*.json") + glob.glob("backend/data/*.json")
+    return {
+        "fund_types_path_setting": FUND_TYPES_PATH,
+        "fund_types_path_absolute": str(path.absolute()),
+        "fund_types_exists": path.exists(),
+        "cwd": os.getcwd(),
+        "json_files_found": files_in_root + files_in_data,
+        "fund_types_loaded": len(_fund_types_cache["data"]),
+        "mxrf11": get_fund_type("MXRF11"),
+    }
+
+
 @app.get("/prices")
 @limiter.limit("30/minute")
 def get_prices(
