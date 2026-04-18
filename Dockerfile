@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Download databases from Dropbox at build time
+# fund_types.json is committed directly to the repo (updated weekly via scraper)
 RUN mkdir -p data && \
     wget -q -O data/b3.db \
     "https://www.dropbox.com/scl/fi/h9p6dkp2wy91bmpa91d8u/b3.db?rlkey=ec23sb9j2mkmyqnwez1me5p48&st=wuqbnp72&dl=1" && \
