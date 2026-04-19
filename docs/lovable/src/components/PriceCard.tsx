@@ -30,9 +30,9 @@ export function PriceCard({ fund }: { fund: FundData }) {
       </div>
 
       {/* Pills */}
-      <div className="flex gap-2 mt-6 flex-wrap">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-6">
         {pills.map(p => (
-          <div key={p.key} className="bg-secondary border border-border rounded-lg px-3 py-2 text-center flex-1 min-w-[52px] hover:bg-muted transition-colors">
+          <div key={p.key} className="bg-secondary border border-border rounded-lg px-3 py-2 text-center hover:bg-muted transition-colors">
             <div className="text-[9px] text-muted-foreground font-mono uppercase tracking-wider">{p.label}</div>
             <div className={`text-sm font-mono font-semibold mt-1 ${pctColor(fund[p.key])}`}>{fmtPct(fund[p.key])}</div>
           </div>

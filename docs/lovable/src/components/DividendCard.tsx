@@ -52,8 +52,8 @@ export function DividendCard({ fund }: { fund: FundData }) {
             </span>
           </div>
 
-          {/* Waffle */}
-          <div className="flex gap-[5px] items-start pb-2 overflow-x-auto">
+          {/* Waffle — 2 rows on mobile, single row on desktop */}
+          <div className="grid grid-cols-7 sm:flex sm:flex-nowrap gap-[5px] items-start pb-2 sm:overflow-x-auto">
             {fund.div_historico.map((d, i) => {
               const prev = i > 0 ? fund.div_historico[i - 1].v : d.v
               const color = waffleColor(d.v, prev)
