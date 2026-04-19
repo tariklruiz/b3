@@ -85,7 +85,7 @@ export function Tip({ text }: { text: string }) {
   return (
     <div className="group relative inline-flex">
       <div className="w-4 h-4 rounded-full bg-secondary border border-border text-[9px] font-mono text-muted-foreground flex items-center justify-center cursor-help hover:border-primary/40 hover:text-primary transition-colors">?</div>
-      <div className="hidden group-hover:block absolute left-0 top-7 z-50 w-[280px] bg-card border border-border rounded-xl p-4 text-xs text-foreground leading-relaxed shadow-xl">
+      <div className="hidden group-hover:block absolute left-0 top-6 z-[100] w-[280px] bg-card border border-border rounded-xl p-4 text-xs text-foreground leading-relaxed shadow-xl">
         {text}
       </div>
     </div>

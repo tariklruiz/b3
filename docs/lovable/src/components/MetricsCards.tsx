@@ -14,8 +14,11 @@ function MetricCard({ title, tooltip, value, badgeColor, badgeLabel, pills }: {
   return (
     <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
       <div className="flex items-center gap-2 mb-3">
-        <SecLabel className="!mb-0 flex-1">{title}</SecLabel>
-        <Tip text={tooltip} />
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-[10px] text-primary uppercase tracking-[0.15em] font-semibold whitespace-nowrap">{title}</span>
+          <Tip text={tooltip} />
+          <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
+        </div>
       </div>
       <div className="flex items-center gap-3 mt-3 mb-4">
         <span className="text-3xl font-bold text-foreground tabular-nums tracking-tight">{value}</span>

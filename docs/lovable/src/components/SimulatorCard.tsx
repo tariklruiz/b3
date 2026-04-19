@@ -64,7 +64,7 @@ function SimSurfaceGrossup({ grossup, anual }: { grossup: string | null; anual: 
         <p className="text-[10px] text-muted-foreground font-mono">equiv. renda fixa 12M</p>
         <div className="group/gt relative inline-flex">
           <div className="w-4 h-4 rounded-full bg-muted border border-border text-[9px] font-mono text-muted-foreground flex items-center justify-center cursor-help hover:border-primary/40 hover:text-primary transition-colors">?</div>
-          <div className="hidden group-hover/gt:block absolute left-0 top-6 z-50 w-[280px] bg-card border border-border rounded-xl p-4 text-xs text-foreground leading-relaxed shadow-xl">
+          <div className="hidden group-hover/gt:block absolute left-0 top-6 z-[100] w-[280px] bg-card border border-border rounded-xl p-4 text-xs text-foreground leading-relaxed shadow-xl">
             <p className="font-semibold mb-2">o que é gross-up?</p>
             {anual != null && (
               <p className="text-muted-foreground text-[11px] mb-3">
