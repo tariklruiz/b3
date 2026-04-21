@@ -1,0 +1,31 @@
+# Dockerfile.migration
+# ============================================================================
+# One-off migration job. Runs inside Railway, pulls SQLite files from Dropbox,
+# loads them into the Railway Postgres service, then exits.
+#
+# NOT for production use. Delete this service once migration is verified.
+# ============================================================================
+
+FROM python:3.11-slim
+
+# wget for Dropbox pulls, libpq for psycopg2-binary
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install only what the migration needs (no FastAPI/uvicorn deps)
+COPY requirements-migration.txt .
+RUN pip install --no-cache-dir -r requirements-migration.txt
+
+# Copy the migration script, schema, and entrypoint
+COPY migrate_sqlite_to_pg.py .
+COPY migrations/ ./migrations/
+COPY fund_types.json .
+COPY run_migration.sh .
+RUN chmod +x run_migration.sh
+
+# Run the full migration flow on container start
+CMD ["./run_migration.sh"]
