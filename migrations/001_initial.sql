@@ -11,6 +11,16 @@
 BEGIN;
 
 -- ============================================================================
+-- Schema evolution fixes (safe to run repeatedly)
+-- ----------------------------------------------------------------------------
+-- Some legacy dividendo rows in the SQLite source lack a ticker (cod_negociacao)
+-- even though they have a valid CNPJ. SQLite allowed NULL; we relax the
+-- constraint here so those historical rows can migrate successfully.
+-- ============================================================================
+ALTER TABLE IF EXISTS dividendos ALTER COLUMN cod_negociacao DROP NOT NULL;
+
+
+-- ============================================================================
 -- 1. cotahist — B3 historical quotes (largest table, ~1GB in SQLite)
 -- ----------------------------------------------------------------------------
 -- PK (cod_neg, dt_pregao) is genuinely unique per ticker-per-day and gives
@@ -47,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_cotahist_dt_pregao
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS dividendos (
     id_documento     BIGINT  PRIMARY KEY,
-    cod_negociacao   TEXT    NOT NULL,
+    cod_negociacao   TEXT,
     cnpj_fundo       TEXT,
     data_base        DATE,
     valor_provento   NUMERIC(12, 6),
