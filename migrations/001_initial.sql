@@ -19,6 +19,19 @@ BEGIN;
 -- ============================================================================
 ALTER TABLE IF EXISTS dividendos ALTER COLUMN cod_negociacao DROP NOT NULL;
 
+-- ----------------------------------------------------------------------------
+-- Widen NUMERIC(10,6) percentage/ratio columns to NUMERIC(18,6). SQLite is
+-- untyped and some source rows contain values that overflow precision 10
+-- (e.g. outlier monthly returns, data-quality issues). Widening preserves
+-- all source data without truncation.
+-- ----------------------------------------------------------------------------
+ALTER TABLE IF EXISTS informe_mensal ALTER COLUMN dividend_yield_mes TYPE NUMERIC(18, 6);
+ALTER TABLE IF EXISTS informe_mensal ALTER COLUMN rent_patr_mensal   TYPE NUMERIC(18, 6);
+ALTER TABLE IF EXISTS gestores       ALTER COLUMN ltv_medio          TYPE NUMERIC(18, 6);
+ALTER TABLE IF EXISTS gestores       ALTER COLUMN vacancia_pct       TYPE NUMERIC(18, 6);
+ALTER TABLE IF EXISTS gestores       ALTER COLUMN contratos_vencer_12m_pct TYPE NUMERIC(18, 6);
+ALTER TABLE IF EXISTS gestores       ALTER COLUMN cap_rate           TYPE NUMERIC(18, 6);
+
 
 -- ============================================================================
 -- 1. cotahist — B3 historical quotes (largest table, ~1GB in SQLite)
@@ -107,8 +120,8 @@ CREATE TABLE IF NOT EXISTS informe_mensal (
     num_cotas_emitidas      NUMERIC(20, 6),
     valor_patr_cotas        NUMERIC(14, 6),
     despesas_tx_adm         NUMERIC(18, 2),
-    dividend_yield_mes      NUMERIC(10, 6),
-    rent_patr_mensal        NUMERIC(10, 6),
+    dividend_yield_mes      NUMERIC(18, 6),
+    rent_patr_mensal        NUMERIC(18, 6),
     rendimentos_distribuir  NUMERIC(18, 2),
     PRIMARY KEY (cnpj_fundo, competencia)
 );
@@ -134,13 +147,13 @@ CREATE TABLE IF NOT EXISTS gestores (
     cota_mercado                NUMERIC(14, 6),
     cota_patrimonial            NUMERIC(14, 6),
     spread_credito_bps          NUMERIC(10, 2),
-    ltv_medio                   NUMERIC(10, 6),
+    ltv_medio                   NUMERIC(18, 6),
     resultado_por_cota          NUMERIC(14, 6),
     distribuicao_por_cota       NUMERIC(14, 6),
     reserva_monetaria_brl       NUMERIC(20, 2),
-    vacancia_pct                NUMERIC(10, 6),
-    contratos_vencer_12m_pct    NUMERIC(10, 6),
-    cap_rate                    NUMERIC(10, 6),
+    vacancia_pct                NUMERIC(18, 6),
+    contratos_vencer_12m_pct    NUMERIC(18, 6),
+    cap_rate                    NUMERIC(18, 6),
     contexto_meses              JSONB,
     cris_em_observacao          JSONB,
     alocacao_fundos             JSONB,
