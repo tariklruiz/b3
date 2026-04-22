@@ -1,0 +1,23 @@
+# Dockerfile.informe
+# ============================================================================
+# FII Guia — Informe Mensal Estruturado scraper.
+# Scheduled service: hits the CVM fnet API, parses XML, writes to informe_mensal.
+# Default mode is --incremental. For a full re-scrape, override the CMD when
+# deploying a one-off (Railway Settings -> Deploy -> Start Command).
+# ============================================================================
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-scraper-informe.txt .
+RUN pip install --no-cache-dir -r requirements-scraper-informe.txt
+
+COPY db.py .
+COPY informe_mensal_scraper.py .
+
+CMD ["python", "informe_mensal_scraper.py", "--incremental"]
