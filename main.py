@@ -466,8 +466,9 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
 @limiter.limit("30/minute")
 def get_fundo_informe(request: Request, ticker: str = Query(...)):
     """
-    Returns the latest informe mensal for a given ticker:
-    nome, segmento, PL, NAV/cota, cotistas, tx_adm, DY mensal
+    Returns the latest informe mensal for a given ticker. Full 27-field dump:
+    identity, classification, administrator, dates, investors, balance sheet,
+    quotas, returns, portfolio composition, distributable income.
     """
     t = validate_ticker(ticker)
 
@@ -487,20 +488,32 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
 
     row = query_one(
         """
-        SELECT nome_fundo,
+        SELECT id_documento,
+               nome_fundo,
                cnpj_fundo,
+               data_funcionamento,
+               publico_alvo,
                classificacao,
                subclassificacao,
                tipo_gestao,
                nome_administrador,
+               cnpj_administrador,
                competencia,
                total_cotistas,
+               pessoa_fisica,
+               ativo_total,
                patrimonio_liquido,
                num_cotas_emitidas,
                valor_patr_cotas,
                despesas_tx_adm,
-               dividend_yield_mes,
                rent_patr_mensal,
+               dividend_yield_mes,
+               total_investido,
+               imoveis_renda,
+               titulos_privados,
+               fundos_renda_fixa,
+               cri_cra,
+               total_passivo,
                rendimentos_distribuir
         FROM informe_mensal
         WHERE cnpj_fundo = %s
@@ -513,22 +526,53 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         raise HTTPException(status_code=404, detail=f"Informe mensal não encontrado para {t}")
 
     return {
+        # Identity
         "ticker": t,
         "cnpj": cnpj,
+        "id_documento": row["id_documento"],
         "nome": row["nome_fundo"],
+
+        # Classification
         "classificacao": row["classificacao"],
         "classificacao_market": get_fund_type(t),  # Papel/Tijolo/FOF/Híbrido from fund_types table
         "subclassificacao": row["subclassificacao"],
         "tipo_gestao": row["tipo_gestao"],
+        "publico_alvo": row["publico_alvo"],
+
+        # Administrator
         "administrador": row["nome_administrador"],
+        "cnpj_administrador": row["cnpj_administrador"],
+
+        # Dates
         "competencia": iso(row["competencia"]),
+        "data_funcionamento": iso(row["data_funcionamento"]),
+
+        # Investors
         "cotistas": row["total_cotistas"],
+        "cotistas_pf": row["pessoa_fisica"],
+
+        # Balance sheet
+        "ativo_total": f(row["ativo_total"]),
         "pl": f(row["patrimonio_liquido"]),
+        "total_passivo": f(row["total_passivo"]),
+
+        # Quotas & admin
         "cotas_emitidas": f(row["num_cotas_emitidas"]),
         "nav_cota": f(row["valor_patr_cotas"]),
         "tx_adm": f(row["despesas_tx_adm"]),
+
+        # Returns
         "dy_mes": f(row["dividend_yield_mes"]),
         "rent_mensal": f(row["rent_patr_mensal"]),
+
+        # Portfolio composition
+        "total_investido": f(row["total_investido"]),
+        "imoveis_renda": f(row["imoveis_renda"]),
+        "titulos_privados": f(row["titulos_privados"]),
+        "fundos_renda_fixa": f(row["fundos_renda_fixa"]),
+        "cri_cra": f(row["cri_cra"]),
+
+        # Distributable income
         "rendimentos_distribuir": f(row["rendimentos_distribuir"]),
     }
 
