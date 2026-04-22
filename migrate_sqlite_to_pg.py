@@ -76,6 +76,8 @@ def parse_date(val: Any) -> date | None:
     """Convert SQLite TEXT 'YYYY-MM-DD' (or None) to a Python date."""
     if val is None or val == "":
         return None
+    if isinstance(val, datetime):
+        return val.date()
     if isinstance(val, date):
         return val
     try:
