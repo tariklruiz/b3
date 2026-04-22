@@ -291,33 +291,37 @@ def migrate_informe_mensal(sqlite_dir: Path, pg, batch_size: int) -> int:
     """informe_mensal.db / informe_mensal -> informe_mensal"""
     src = sqlite_open(sqlite_dir / "informe_mensal.db")
     cur = src.execute(
-        "SELECT cnpj_fundo, competencia, nome_fundo, classificacao, subclassificacao, "
-        "tipo_gestao, nome_administrador, total_cotistas, patrimonio_liquido, "
-        "num_cotas_emitidas, valor_patr_cotas, despesas_tx_adm, dividend_yield_mes, "
-        "rent_patr_mensal, rendimentos_distribuir FROM informe_mensal"
+        "SELECT id_documento, cnpj_fundo, competencia, nome_fundo, classificacao, "
+        "subclassificacao, tipo_gestao, nome_administrador, total_cotistas, "
+        "patrimonio_liquido, num_cotas_emitidas, valor_patr_cotas, despesas_tx_adm, "
+        "dividend_yield_mes, rent_patr_mensal, rendimentos_distribuir "
+        "FROM informe_mensal"
     )
 
     def rows():
         for r in cur:
-            comp = parse_date(r["competencia"])
-            if comp is None or r["cnpj_fundo"] is None:
+            if r["id_documento"] is None:
                 continue
             yield (
-                r["cnpj_fundo"], comp, r["nome_fundo"], r["classificacao"],
-                r["subclassificacao"], r["tipo_gestao"], r["nome_administrador"],
+                r["id_documento"],
+                r["cnpj_fundo"],
+                parse_date(r["competencia"]),
+                r["nome_fundo"], r["classificacao"], r["subclassificacao"],
+                r["tipo_gestao"], r["nome_administrador"],
                 r["total_cotistas"], r["patrimonio_liquido"], r["num_cotas_emitidas"],
                 r["valor_patr_cotas"], r["despesas_tx_adm"], r["dividend_yield_mes"],
                 r["rent_patr_mensal"], r["rendimentos_distribuir"],
             )
 
     columns = [
-        "cnpj_fundo", "competencia", "nome_fundo", "classificacao", "subclassificacao",
-        "tipo_gestao", "nome_administrador", "total_cotistas", "patrimonio_liquido",
-        "num_cotas_emitidas", "valor_patr_cotas", "despesas_tx_adm", "dividend_yield_mes",
-        "rent_patr_mensal", "rendimentos_distribuir",
+        "id_documento", "cnpj_fundo", "competencia", "nome_fundo", "classificacao",
+        "subclassificacao", "tipo_gestao", "nome_administrador", "total_cotistas",
+        "patrimonio_liquido", "num_cotas_emitidas", "valor_patr_cotas",
+        "despesas_tx_adm", "dividend_yield_mes", "rent_patr_mensal",
+        "rendimentos_distribuir",
     ]
     inserted = bulk_insert(pg, "informe_mensal", columns, rows(),
-                           "(cnpj_fundo, competencia)", batch_size)
+                           "(id_documento)", batch_size)
     src.close()
     return inserted
 
@@ -325,6 +329,16 @@ def migrate_informe_mensal(sqlite_dir: Path, pg, batch_size: int) -> int:
 def migrate_gestores(sqlite_dir: Path, pg, batch_size: int) -> int:
     """gestores.db / gestores -> gestores (with JSONB conversion)"""
     src = sqlite_open(sqlite_dir / "gestores.db")
+
+    # Debug: report source row count so we can tell if 0 rows loaded means
+    # 'source is empty' vs 'all rows were filtered out'
+    src_count = src.execute("SELECT COUNT(*) FROM gestores").fetchone()[0]
+    log(f"  gestores source has {src_count} rows in SQLite")
+    if src_count == 0:
+        log("  gestores: source is empty, nothing to migrate")
+        src.close()
+        return 0
+
     cur = src.execute(
         "SELECT ticker, competencia, classificacao, tom_gestor, pl_total_brl, "
         "cota_mercado, cota_patrimonial, spread_credito_bps, ltv_medio, "
@@ -335,10 +349,14 @@ def migrate_gestores(sqlite_dir: Path, pg, batch_size: int) -> int:
         "FROM gestores"
     )
 
+    skipped = 0
+
     def rows():
+        nonlocal skipped
         for r in cur:
             comp = parse_date(r["competencia"])
             if comp is None or r["ticker"] is None:
+                skipped += 1
                 continue
             yield (
                 r["ticker"], comp, r["classificacao"], r["tom_gestor"],
@@ -364,6 +382,8 @@ def migrate_gestores(sqlite_dir: Path, pg, batch_size: int) -> int:
     ]
     inserted = bulk_insert(pg, "gestores", columns, rows(),
                            "(ticker, competencia)", batch_size)
+    if skipped > 0:
+        log(f"  gestores: skipped {skipped} rows with NULL ticker or competencia")
     src.close()
     return inserted
 
@@ -417,38 +437,54 @@ def verify_counts(sqlite_dir: Path, fund_types_path: Path, pg) -> None:
     ]
 
     all_match = True
-    with pg.cursor() as pg_cur:
-        for table, sqlite_path, sqlite_sql in checks:
-            # SQLite count
-            if sqlite_path.exists():
-                sconn = sqlite3.connect(sqlite_path)
-                try:
-                    sqlite_count = sconn.execute(sqlite_sql).fetchone()[0]
-                except sqlite3.OperationalError:
-                    sqlite_count = 0  # table doesn't exist
-                sconn.close()
-            else:
-                sqlite_count = 0
+    for table, sqlite_path, sqlite_sql in checks:
+        # SQLite count
+        sqlite_count = 0
+        if sqlite_path.exists():
+            sconn = sqlite3.connect(sqlite_path)
+            try:
+                sqlite_count = sconn.execute(sqlite_sql).fetchone()[0]
+            except sqlite3.OperationalError:
+                sqlite_count = 0  # table doesn't exist
+            sconn.close()
 
-            # Postgres count
-            pg_cur.execute(f"SELECT COUNT(*) FROM {table}")
-            pg_count = pg_cur.fetchone()[0]
+        # Postgres count — use a fresh cursor per table to avoid transaction
+        # state bleeding between queries
+        try:
+            pg.rollback()  # clear any aborted transaction
+            with pg.cursor() as pg_cur:
+                pg_cur.execute(f"SELECT COUNT(*) FROM {table}")
+                pg_count = pg_cur.fetchone()[0]
+                if isinstance(pg_count, dict):
+                    pg_count = next(iter(pg_count.values()))
+        except Exception as e:
+            log(f"  {table:20s} ERROR querying Postgres: {e}")
+            all_match = False
+            continue
 
-            match = "OK" if sqlite_count == pg_count else "MISMATCH"
-            if sqlite_count != pg_count:
-                all_match = False
-            log(f"  {table:20s} sqlite={sqlite_count:>12,}  pg={pg_count:>12,}  [{match}]")
+        match = "OK" if sqlite_count == pg_count else "MISMATCH"
+        if sqlite_count != pg_count:
+            all_match = False
+        log(f"  {table:20s} sqlite={sqlite_count:>12,}  pg={pg_count:>12,}  [{match}]")
 
-        # fund_types: compare JSON dict size to table count
-        if fund_types_path.exists():
-            with open(fund_types_path, "r", encoding="utf-8") as f:
-                json_count = len(json.load(f).get("fundos", {}))
-            pg_cur.execute("SELECT COUNT(*) FROM fund_types")
-            pg_count = pg_cur.fetchone()[0]
+    # fund_types: compare JSON dict size to table count
+    if fund_types_path.exists():
+        with open(fund_types_path, "r", encoding="utf-8") as f:
+            json_count = len(json.load(f).get("fundos", {}))
+        try:
+            pg.rollback()
+            with pg.cursor() as pg_cur:
+                pg_cur.execute("SELECT COUNT(*) FROM fund_types")
+                pg_count = pg_cur.fetchone()[0]
+                if isinstance(pg_count, dict):
+                    pg_count = next(iter(pg_count.values()))
             match = "OK" if json_count == pg_count else "MISMATCH"
             if json_count != pg_count:
                 all_match = False
             log(f"  {'fund_types':20s} json={json_count:>12,}  pg={pg_count:>12,}  [{match}]")
+        except Exception as e:
+            log(f"  fund_types           ERROR querying Postgres: {e}")
+            all_match = False
 
     log("Verification " + ("passed" if all_match else "FAILED"))
 

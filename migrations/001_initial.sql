@@ -21,6 +21,20 @@ BEGIN;
 -- Legacy dividendo rows can have NULL cod_negociacao (SQLite allowed it).
 ALTER TABLE IF EXISTS dividendos ALTER COLUMN cod_negociacao DROP NOT NULL;
 
+-- informe_mensal PK was incorrectly set to (cnpj_fundo, competencia). The real
+-- PK is id_documento. Drop the table so the CREATE TABLE below rebuilds it
+-- with the correct structure. Safe because data will be reloaded by the
+-- migration script immediately after.
+DROP TABLE IF EXISTS informe_mensal CASCADE;
+
+-- Also reset erros to clean up duplicate rows accumulated across retry runs.
+-- The surrogate BIGSERIAL id caused each retry to multiply the row count.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'erros') THEN
+        EXECUTE 'TRUNCATE TABLE erros RESTART IDENTITY';
+    END IF;
+END $$;
+
 -- Widen all numeric columns to unconstrained NUMERIC. SQLite is untyped, so
 -- some source rows contain values that overflow any finite precision we
 -- declare. NUMERIC without precision preserves all source data exactly.
@@ -120,10 +134,15 @@ CREATE INDEX IF NOT EXISTS idx_erros_registrado_em
 
 -- ============================================================================
 -- 4. informe_mensal — CVM monthly fund reports
+-- ----------------------------------------------------------------------------
+-- PK is id_documento (one report = one filing = one ID). Note that the same
+-- (cnpj_fundo, competencia) can appear multiple times because funds can file
+-- amendments/retifications.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS informe_mensal (
-    cnpj_fundo              TEXT    NOT NULL,
-    competencia             DATE    NOT NULL,
+    id_documento            BIGINT  PRIMARY KEY,
+    cnpj_fundo              TEXT,
+    competencia             DATE,
     nome_fundo              TEXT,
     classificacao           TEXT,
     subclassificacao        TEXT,
@@ -136,9 +155,11 @@ CREATE TABLE IF NOT EXISTS informe_mensal (
     despesas_tx_adm         NUMERIC,
     dividend_yield_mes      NUMERIC,
     rent_patr_mensal        NUMERIC,
-    rendimentos_distribuir  NUMERIC,
-    PRIMARY KEY (cnpj_fundo, competencia)
+    rendimentos_distribuir  NUMERIC
 );
+
+CREATE INDEX IF NOT EXISTS idx_informe_cnpj_competencia
+    ON informe_mensal (cnpj_fundo, competencia DESC);
 
 CREATE INDEX IF NOT EXISTS idx_informe_competencia
     ON informe_mensal (competencia DESC);
