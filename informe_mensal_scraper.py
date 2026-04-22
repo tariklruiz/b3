@@ -99,12 +99,37 @@ def parse_competencia(val: str | None):
 
 
 # ---------------------------------------------------------------------------
+# HTTP helper with informative errors
+# ---------------------------------------------------------------------------
+def fetch_grid_json(session: requests.Session, params: dict) -> dict:
+    """
+    GET the CVM grid endpoint and return parsed JSON. Raises with a helpful
+    error message if the response is HTML, empty, or otherwise non-JSON.
+    CVM occasionally serves WAF challenges or maintenance pages; those are
+    worth seeing in the logs.
+    """
+    resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
+    try:
+        return resp.json()
+    except ValueError as e:
+        # Not JSON. Log what we actually got so we can tell if it's a WAF
+        # page, a maintenance HTML, or empty body.
+        body = (resp.text or "").strip()
+        preview = body[:300].replace("\n", " ")
+        raise RuntimeError(
+            f"CVM returned non-JSON: status={resp.status_code} "
+            f"content-type={resp.headers.get('Content-Type', 'unknown')} "
+            f"body_len={len(body)} preview={preview!r}"
+        ) from e
+
+
+# ---------------------------------------------------------------------------
 # Grid fetch — full mode
 # ---------------------------------------------------------------------------
 def fetch_all_document_ids(resume_ids: set) -> list:
     log.info("Fetching full document list from B3 API...")
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"})
     all_docs: list = []
     offset = 0
     total = None
@@ -112,8 +137,7 @@ def fetch_all_document_ids(resume_ids: set) -> list:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             params = {**GRID_PARAMS, "s": 0, "l": PAGE_SIZE, "d": 1}
-            resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
-            data = resp.json()
+            data = fetch_grid_json(session, params)
             total = data["recordsFiltered"]
             all_docs.extend(data["data"])
             log.info(f"Total documents on B3: {total:,}")
@@ -131,8 +155,8 @@ def fetch_all_document_ids(resume_ids: set) -> list:
             try:
                 params = {**GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
                           "d": offset // PAGE_SIZE + 1}
-                resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
-                batch = resp.json()["data"]
+                data = fetch_grid_json(session, params)
+                batch = data["data"]
                 all_docs.extend(batch)
                 break
             except Exception as e:
@@ -157,7 +181,7 @@ def fetch_all_document_ids(resume_ids: set) -> list:
 def fetch_incremental_document_ids(max_known_id: int) -> list:
     log.info(f"Incremental mode — fetching docs newer than ID {max_known_id:,}...")
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"})
     new_docs: list = []
     offset = 0
     total = None
@@ -166,8 +190,7 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             params = {**GRID_PARAMS, "s": 0, "l": PAGE_SIZE, "d": 1}
-            resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
-            data = resp.json()
+            data = fetch_grid_json(session, params)
             total = data["recordsFiltered"]
             log.info(f"Total documents on B3: {total:,}")
             for doc in data["data"]:
@@ -189,8 +212,8 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
             try:
                 params = {**GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
                           "d": offset // PAGE_SIZE + 1}
-                resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
-                batch = resp.json()["data"]
+                data = fetch_grid_json(session, params)
+                batch = data["data"]
                 for doc in batch:
                     if doc["id"] <= max_known_id:
                         done = True
@@ -398,7 +421,7 @@ def scrape(resume: bool = False, retry_errors: bool = False, incremental: bool =
         return
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"})
     success = 0
     failed = 0
 
