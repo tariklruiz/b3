@@ -67,8 +67,8 @@ export default function Index() {
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
     const params = new URLSearchParams(hash)
-    const initialTicker = params.get('ticker') || 'MXRF11'
-    loadFund(initialTicker)
+    const initialTicker = params.get('ticker')
+    if (initialTicker) loadFund(initialTicker)
   }, [loadFund])
 
   return (

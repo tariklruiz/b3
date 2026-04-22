@@ -28,7 +28,7 @@ export function SearchBar({ onSearch, initialValue = '' }: SearchBarProps) {
           <input
             type="text"
             className="flex-1 bg-transparent border-none outline-none text-sm text-foreground font-mono placeholder:text-muted-foreground/50 h-full"
-            placeholder="Buscar fundo... ex: MXRF11, KNCR11, XPML11"
+            placeholder="Buscar fundo — ex: MXRF11"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
