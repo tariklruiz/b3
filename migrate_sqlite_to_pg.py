@@ -290,13 +290,16 @@ def migrate_erros(sqlite_dir: Path, pg, batch_size: int) -> int:
 
 
 def migrate_informe_mensal(sqlite_dir: Path, pg, batch_size: int) -> int:
-    """informe_mensal.db / informe_mensal -> informe_mensal"""
+    """informe_mensal.db / informe_mensal -> informe_mensal (all 26 columns)"""
     src = sqlite_open(sqlite_dir / "informe_mensal.db")
     cur = src.execute(
-        "SELECT id_documento, cnpj_fundo, competencia, nome_fundo, classificacao, "
-        "subclassificacao, tipo_gestao, nome_administrador, total_cotistas, "
-        "patrimonio_liquido, num_cotas_emitidas, valor_patr_cotas, despesas_tx_adm, "
-        "dividend_yield_mes, rent_patr_mensal, rendimentos_distribuir "
+        "SELECT id_documento, nome_fundo, cnpj_fundo, data_funcionamento, "
+        "publico_alvo, classificacao, subclassificacao, tipo_gestao, "
+        "nome_administrador, cnpj_administrador, competencia, total_cotistas, "
+        "pessoa_fisica, ativo_total, patrimonio_liquido, num_cotas_emitidas, "
+        "valor_patr_cotas, despesas_tx_adm, rent_patr_mensal, dividend_yield_mes, "
+        "total_investido, imoveis_renda, titulos_privados, fundos_renda_fixa, "
+        "cri_cra, total_passivo, rendimentos_distribuir "
         "FROM informe_mensal"
     )
 
@@ -306,21 +309,43 @@ def migrate_informe_mensal(sqlite_dir: Path, pg, batch_size: int) -> int:
                 continue
             yield (
                 r["id_documento"],
+                r["nome_fundo"],
                 r["cnpj_fundo"],
+                parse_date(r["data_funcionamento"]),
+                r["publico_alvo"],
+                r["classificacao"],
+                r["subclassificacao"],
+                r["tipo_gestao"],
+                r["nome_administrador"],
+                r["cnpj_administrador"],
                 parse_date(r["competencia"]),
-                r["nome_fundo"], r["classificacao"], r["subclassificacao"],
-                r["tipo_gestao"], r["nome_administrador"],
-                r["total_cotistas"], r["patrimonio_liquido"], r["num_cotas_emitidas"],
-                r["valor_patr_cotas"], r["despesas_tx_adm"], r["dividend_yield_mes"],
-                r["rent_patr_mensal"], r["rendimentos_distribuir"],
+                r["total_cotistas"],
+                r["pessoa_fisica"],
+                r["ativo_total"],
+                r["patrimonio_liquido"],
+                r["num_cotas_emitidas"],
+                r["valor_patr_cotas"],
+                r["despesas_tx_adm"],
+                r["rent_patr_mensal"],
+                r["dividend_yield_mes"],
+                r["total_investido"],
+                r["imoveis_renda"],
+                r["titulos_privados"],
+                r["fundos_renda_fixa"],
+                r["cri_cra"],
+                r["total_passivo"],
+                r["rendimentos_distribuir"],
             )
 
     columns = [
-        "id_documento", "cnpj_fundo", "competencia", "nome_fundo", "classificacao",
-        "subclassificacao", "tipo_gestao", "nome_administrador", "total_cotistas",
-        "patrimonio_liquido", "num_cotas_emitidas", "valor_patr_cotas",
-        "despesas_tx_adm", "dividend_yield_mes", "rent_patr_mensal",
-        "rendimentos_distribuir",
+        "id_documento", "nome_fundo", "cnpj_fundo", "data_funcionamento",
+        "publico_alvo", "classificacao", "subclassificacao", "tipo_gestao",
+        "nome_administrador", "cnpj_administrador", "competencia",
+        "total_cotistas", "pessoa_fisica", "ativo_total", "patrimonio_liquido",
+        "num_cotas_emitidas", "valor_patr_cotas", "despesas_tx_adm",
+        "rent_patr_mensal", "dividend_yield_mes", "total_investido",
+        "imoveis_renda", "titulos_privados", "fundos_renda_fixa",
+        "cri_cra", "total_passivo", "rendimentos_distribuir",
     ]
     inserted = bulk_insert(pg, "informe_mensal", columns, rows(),
                            "(id_documento)", batch_size)

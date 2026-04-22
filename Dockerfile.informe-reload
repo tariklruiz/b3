@@ -1,0 +1,27 @@
+# Dockerfile.informe-reload
+# ============================================================================
+# One-off informe_mensal reload. Drops & recreates the Postgres table with
+# the full 26-column schema, then reloads ~200k rows from the SQLite source.
+#
+# Runs inside Railway so it can reach Postgres via the internal network.
+# Delete the service once the reload is verified.
+# ============================================================================
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-migration.txt .
+RUN pip install --no-cache-dir -r requirements-migration.txt
+
+COPY migrate_sqlite_to_pg.py .
+COPY migrations/ ./migrations/
+COPY run_informe_reload.sh .
+RUN chmod +x run_informe_reload.sh
+
+CMD ["./run_informe_reload.sh"]

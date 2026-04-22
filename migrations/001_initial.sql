@@ -25,6 +25,9 @@ ALTER TABLE IF EXISTS dividendos ALTER COLUMN cod_negociacao DROP NOT NULL;
 -- PK is id_documento. Drop the table so the CREATE TABLE below rebuilds it
 -- with the correct structure. Safe because data will be reloaded by the
 -- migration script immediately after.
+--
+-- Also used to rebuild the table when we added the 11 SQLite columns that
+-- were missed in the initial schema (data_funcionamento, publico_alvo, etc.).
 DROP TABLE IF EXISTS informe_mensal CASCADE;
 
 -- Also reset erros to clean up duplicate rows accumulated across retry runs.
@@ -138,23 +141,38 @@ CREATE INDEX IF NOT EXISTS idx_erros_registrado_em
 -- PK is id_documento (one report = one filing = one ID). Note that the same
 -- (cnpj_fundo, competencia) can appear multiple times because funds can file
 -- amendments/retifications.
+--
+-- All 26 columns from the original SQLite source are preserved. main.py uses
+-- ~15 of them today; the rest (ativo_total, imoveis_renda, etc.) are kept
+-- for future endpoints / richer analytics.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS informe_mensal (
     id_documento            BIGINT  PRIMARY KEY,
-    cnpj_fundo              TEXT,
-    competencia             DATE,
     nome_fundo              TEXT,
+    cnpj_fundo              TEXT,
+    data_funcionamento      DATE,
+    publico_alvo            TEXT,
     classificacao           TEXT,
     subclassificacao        TEXT,
     tipo_gestao             TEXT,
     nome_administrador      TEXT,
+    cnpj_administrador      TEXT,
+    competencia             DATE,
     total_cotistas          INTEGER,
+    pessoa_fisica           INTEGER,
+    ativo_total             NUMERIC,
     patrimonio_liquido      NUMERIC,
     num_cotas_emitidas      NUMERIC,
     valor_patr_cotas        NUMERIC,
     despesas_tx_adm         NUMERIC,
-    dividend_yield_mes      NUMERIC,
     rent_patr_mensal        NUMERIC,
+    dividend_yield_mes      NUMERIC,
+    total_investido         NUMERIC,
+    imoveis_renda           NUMERIC,
+    titulos_privados        NUMERIC,
+    fundos_renda_fixa       NUMERIC,
+    cri_cra                 NUMERIC,
+    total_passivo           NUMERIC,
     rendimentos_distribuir  NUMERIC
 );
 
