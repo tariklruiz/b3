@@ -1,26 +1,32 @@
+# Dockerfile
+# ============================================================================
+# Guia FII — FastAPI backend (Postgres edition)
+#
+# Reads data from Railway Postgres via DATABASE_URL env var. No SQLite files,
+# no Dropbox downloads, no fund_types.json file — all data lives in Postgres.
+# ============================================================================
+
 FROM python:3.11-slim
+
+# libpq-dev is needed if we ever swap to psycopg2 from source; psycopg2-binary
+# has its own libpq statically linked so strictly not required, but costs
+# nothing and covers us if we rebuild from source later.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
-
+# Install Python deps first so Docker caches the layer
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy application code
+COPY main.py .
+COPY db.py .
 
-# Download databases from Dropbox at build time
-# fund_types.json is committed directly to the repo (updated weekly via scraper)
-RUN mkdir -p data && \
-    wget -q -O data/b3.db \
-    "https://www.dropbox.com/scl/fi/h9p6dkp2wy91bmpa91d8u/b3.db?rlkey=ec23sb9j2mkmyqnwez1me5p48&st=wuqbnp72&dl=1" && \
-    wget -q -O data/dividendos.db \
-    "https://www.dropbox.com/scl/fi/1je6v5ewqk5fjubr3m0vy/dividendos.db?rlkey=pfbhmudlo4vy8kaasl73byxah&dl=1" && \
-    wget -q -O data/informe_mensal.db \
-    "https://www.dropbox.com/scl/fi/6sxikc6sb9zdrjwqzpkbp/informe_mensal.db?rlkey=on9yrbva9oy3xe7v0rfzkvsqd&dl=1" && \
-    wget -q -O data/gestores.db \
-    "https://www.dropbox.com/scl/fi/oo31qrrlvypnhpz8qyqwa/gestores.db?rlkey=tf75spkbvyyzsbh1q2h0u1hln&st=zq1gk8ax&dl=1"
-
+# Railway sets $PORT automatically; default to 8000 for local runs
+ENV PORT=8000
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]

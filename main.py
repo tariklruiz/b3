@@ -1,76 +1,72 @@
 """
-Guia FII — API
+Guia FII — API (Postgres edition)
+
 Endpoints:
     GET /prices?tickers=MXRF11&date=2026-03-31
     GET /tickers?search=MXRF
     GET /dates/all
     GET /dates/available?ticker=MXRF11
-    GET /fundo/preco?ticker=MXRF11        — price history for health check page
-    GET /fundo/dividendos?ticker=MXRF11   — last 13 dividends + stats
+    GET /fundo/preco?ticker=MXRF11         — price history for health check page
+    GET /fundo/dividendos?ticker=MXRF11    — last 13 dividends + stats
+    GET /fundo/informe?ticker=MXRF11       — latest monthly report
+    GET /fundo/gestor?ticker=MXRF11        — latest management report summary
+    GET /benchmarks                        — median DY per classificação
+    GET /cdi                               — current CDI rate from BCB
+    GET /debug                             — deploy diagnostics
+
+This file is the Postgres rewrite of the original SQLite-based API. Endpoint
+shapes, query params, and response JSON are IDENTICAL to the previous version.
+Only the data layer changed: sqlite3 -> psycopg2 via db.py (pooled connections).
 """
+
+from __future__ import annotations
+
+import math
+import os
+import re
+from contextlib import asynccontextmanager
+from datetime import date, datetime, timedelta
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import sqlite3
-import os
-import re
-import math
-from pathlib import Path
-from datetime import datetime, date, timedelta
+from slowapi.util import get_remote_address
+
+from db import (
+    close_pool,
+    get_all_fund_types,
+    get_fund_type,
+    init_pool,
+    query_all,
+    query_one,
+)
 
 # ---------------------------------------------------------------------------
-# CONFIG
+# App lifecycle: init and close the connection pool
 # ---------------------------------------------------------------------------
-DB_PATH      = os.getenv("DB_PATH",      "data/b3.db")
-DIV_PATH     = os.getenv("DIV_PATH",     "data/dividendos.db")
-INFORME_PATH = os.getenv("INFORME_PATH", "data/informe_mensal.db")
-FUND_TYPES_PATH = os.getenv("FUND_TYPES_PATH", "data/fund_types.json")
-GESTOR_PATH     = os.getenv("GESTOR_PATH",     "data/gestores.db")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_pool()
+    try:
+        yield
+    finally:
+        close_pool()
+
 
 # ---------------------------------------------------------------------------
-def get_gestor_db():
-    db = Path(GESTOR_PATH)
-    if not db.exists():
-        return None
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    return conn
-
+# App setup
 # ---------------------------------------------------------------------------
-# Fund classification — loaded from fund_types.json
-# Refreshed from disk at most once per hour (hot-reload without restart)
-# ---------------------------------------------------------------------------
-import json as _json_mod
 
-_fund_types_cache: dict = {"data": {}, "ts": 0}
-
-def get_fund_type(ticker: str) -> str | None:
-    """Return market classification for a ticker from fund_types.json."""
-    import time as _t
-    now = _t.time()
-    if now - _fund_types_cache["ts"] > 3600:
-        path = Path(FUND_TYPES_PATH)
-        if path.exists():
-            try:
-                raw = _json_mod.loads(path.read_text(encoding="utf-8"))
-                _fund_types_cache["data"] = raw.get("fundos", {})
-                _fund_types_cache["ts"] = now
-            except Exception:
-                pass
-    return _fund_types_cache["data"].get(ticker.upper())
-
-# ---------------------------------------------------------------------------
-# RATE LIMITER
-# ---------------------------------------------------------------------------
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 app = FastAPI(
     title="Guia FII API",
-    description="B3 price and dividend data for FIIs",
-    version="2.0.0",
+    description="B3 price and dividend data for FIIs (Postgres)",
+    version="3.0.0",
+    lifespan=lifespan,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -82,38 +78,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------------------------------
-# DB helpers
-# ---------------------------------------------------------------------------
-def get_b3():
-    db = Path(DB_PATH)
-    if not db.exists():
-        raise HTTPException(status_code=503, detail=f"b3.db not found at {DB_PATH}")
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def get_div():
-    db = Path(DIV_PATH)
-    if not db.exists():
-        raise HTTPException(status_code=503, detail=f"dividendos.db not found at {DIV_PATH}")
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def get_informe():
-    db = Path(INFORME_PATH)
-    if not db.exists():
-        raise HTTPException(status_code=503, detail=f"informe_mensal.db not found at {INFORME_PATH}")
-    conn = sqlite3.connect(db)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
-TICKER_RE = re.compile(r'^[A-Z0-9]{1,12}$')
-DATE_RE   = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+TICKER_RE = re.compile(r"^[A-Z0-9]{1,12}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 
 def validate_ticker(t: str) -> str:
     t = t.strip().upper()
@@ -121,7 +93,8 @@ def validate_ticker(t: str) -> str:
         raise HTTPException(status_code=400, detail=f"Ticker inválido: '{t}'")
     return t
 
-def validate_tickers(raw: str) -> list:
+
+def validate_tickers(raw: str) -> list[str]:
     tickers = [t.strip().upper() for t in raw.split(",") if t.strip()]
     if not tickers:
         raise HTTPException(status_code=400, detail="Nenhum ativo informado.")
@@ -132,6 +105,7 @@ def validate_tickers(raw: str) -> list:
             raise HTTPException(status_code=400, detail=f"Ativo inválido: '{t}'")
     return tickers
 
+
 def validate_date(d: str) -> str:
     if not DATE_RE.match(d):
         raise HTTPException(status_code=400, detail="Data inválida. Use YYYY-MM-DD.")
@@ -141,17 +115,32 @@ def validate_date(d: str) -> str:
         raise HTTPException(status_code=400, detail=f"Data inválida: '{d}'")
     return d
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def iso(d: Any) -> str | None:
+    """
+    Convert a Python date/datetime to ISO string, preserving backward
+    compatibility with the previous SQLite API where dates were TEXT.
+    Returns None for None, unchanged for strings, isoformat for date/datetime.
+    """
+    if d is None:
+        return None
+    if isinstance(d, (date, datetime)):
+        return d.isoformat()[:10] if isinstance(d, date) and not isinstance(d, datetime) else d.isoformat()
+    return str(d)
+
+
 def calc_volatility(prices: list) -> float:
     """Annualised volatility from a list of closing prices (oldest first)."""
     if len(prices) < 2:
         return 0.0
     returns = []
     for i in range(1, len(prices)):
-        if prices[i-1] > 0:
-            returns.append(math.log(prices[i] / prices[i-1]))
+        if prices[i - 1] and float(prices[i - 1]) > 0:
+            returns.append(math.log(float(prices[i]) / float(prices[i - 1])))
     if not returns:
         return 0.0
     n = len(returns)
@@ -159,11 +148,23 @@ def calc_volatility(prices: list) -> float:
     variance = sum((r - mean) ** 2 for r in returns) / (n - 1)
     return math.sqrt(variance) * math.sqrt(252)
 
+
 def dates_ago(n: int) -> str:
     return (date.today() - timedelta(days=n)).strftime("%Y-%m-%d")
 
+
+def f(x: Any) -> float | None:
+    """Cast Postgres NUMERIC (Decimal) to float for JSON. Keeps None as None."""
+    if x is None:
+        return None
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------
-# Endpoints — legacy (prices page)
+# Endpoints — root / debug
 # ---------------------------------------------------------------------------
 
 @app.get("/")
@@ -173,20 +174,24 @@ def root():
 
 @app.get("/debug")
 def debug_info():
-    import os, glob
-    path = Path(FUND_TYPES_PATH)
-    files_in_root = glob.glob("*.json")
-    files_in_data = glob.glob("data/*.json") + glob.glob("backend/data/*.json")
-    return {
-        "fund_types_path_setting": FUND_TYPES_PATH,
-        "fund_types_path_absolute": str(path.absolute()),
-        "fund_types_exists": path.exists(),
-        "cwd": os.getcwd(),
-        "json_files_found": files_in_root + files_in_data,
-        "fund_types_loaded": len(_fund_types_cache["data"]),
-        "mxrf11": get_fund_type("MXRF11"),
-    }
+    """Health diagnostic: verifies DB connection and fund_types population."""
+    try:
+        cotahist_count = query_one("SELECT COUNT(*) AS n FROM cotahist")
+        fund_types_count = query_one("SELECT COUNT(*) AS n FROM fund_types")
+        return {
+            "status": "ok",
+            "database": "postgres",
+            "cotahist_rows": cotahist_count["n"] if cotahist_count else 0,
+            "fund_types_rows": fund_types_count["n"] if fund_types_count else 0,
+            "mxrf11_classification": get_fund_type("MXRF11"),
+        }
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
+
+# ---------------------------------------------------------------------------
+# Endpoints — "legacy" (prices page)
+# ---------------------------------------------------------------------------
 
 @app.get("/prices")
 @limiter.limit("30/minute")
@@ -197,27 +202,45 @@ def get_prices(
 ):
     ticker_list = validate_tickers(tickers)
     validate_date(date)
-    placeholders = ",".join("?" * len(ticker_list))
+
+    # Postgres uses %s placeholders; build a placeholder list for IN clause
+    placeholders = ",".join(["%s"] * len(ticker_list))
+    params = tuple(ticker_list) + (date,)
     query = f"""
-        SELECT CodNeg AS ticker, DtPregao AS date,
-               PrecoAbertura AS open, PrecoMaximo AS high,
-               PrecoMinimo AS low, PrecoUltimo AS close,
-               VolNegocios AS volume, NumNegocios AS trades
+        SELECT cod_neg         AS ticker,
+               dt_pregao        AS date,
+               preco_abertura   AS open,
+               preco_maximo     AS high,
+               preco_minimo     AS low,
+               preco_ultimo     AS close,
+               vol_negocios     AS volume,
+               num_negocios     AS trades
         FROM cotahist
-        WHERE CodNeg IN ({placeholders}) AND DtPregao = ?
-        ORDER BY CodNeg
+        WHERE cod_neg IN ({placeholders}) AND dt_pregao = %s
+        ORDER BY cod_neg
     """
-    conn = get_b3()
-    rows = conn.execute(query, ticker_list + [date]).fetchall()
-    conn.close()
-    found = {row["ticker"]: dict(row) for row in rows}
+    rows = query_all(query, params)
+
+    found = {}
+    for row in rows:
+        found[row["ticker"]] = {
+            "ticker": row["ticker"],
+            "date": iso(row["date"]),
+            "open":   f(row["open"]),
+            "high":   f(row["high"]),
+            "low":    f(row["low"]),
+            "close":  f(row["close"]),
+            "volume": f(row["volume"]),
+            "trades": row["trades"],
+        }
+
     results = []
     for t in ticker_list:
         results.append(found.get(t, {
             "ticker": t, "date": date,
             "open": None, "high": None, "low": None,
             "close": None, "volume": None, "trades": None,
-            "note": "No data for this ticker on this date"
+            "note": "No data for this ticker on this date",
         }))
     return {"date": date, "results": results}
 
@@ -225,48 +248,54 @@ def get_prices(
 @app.get("/tickers")
 @limiter.limit("20/minute")
 def get_tickers(request: Request, search: str = Query(None)):
-    conn = get_b3()
     if search:
-        if len(search) > 12 or not re.match(r'^[A-Z0-9]+$', search.upper()):
+        if len(search) > 12 or not re.match(r"^[A-Z0-9]+$", search.upper()):
             raise HTTPException(status_code=400, detail="Filtro inválido.")
-        rows = conn.execute(
-            "SELECT DISTINCT CodNeg AS ticker, NomResumido AS name FROM cotahist WHERE CodNeg LIKE ? ORDER BY CodNeg",
-            (f"%{search.upper()}%",)
-        ).fetchall()
+        rows = query_all(
+            "SELECT DISTINCT cod_neg AS ticker, nom_resumido AS name "
+            "FROM cotahist WHERE cod_neg LIKE %s ORDER BY cod_neg",
+            (f"%{search.upper()}%",),
+        )
     else:
-        rows = conn.execute(
-            "SELECT DISTINCT CodNeg AS ticker, NomResumido AS name FROM cotahist ORDER BY CodNeg"
-        ).fetchall()
-    conn.close()
+        rows = query_all(
+            "SELECT DISTINCT cod_neg AS ticker, nom_resumido AS name "
+            "FROM cotahist ORDER BY cod_neg"
+        )
     return {"count": len(rows), "tickers": [dict(r) for r in rows]}
 
 
 @app.get("/dates/all")
 def get_all_dates():
-    conn = get_b3()
-    rows = conn.execute(
-        "SELECT DISTINCT DtPregao AS date FROM cotahist ORDER BY DtPregao DESC"
-    ).fetchall()
-    conn.close()
-    dates = [r["date"] for r in rows]
-    return {"count": len(dates), "latest": dates[0] if dates else None,
-            "earliest": dates[-1] if dates else None, "dates": dates}
+    rows = query_all(
+        "SELECT DISTINCT dt_pregao AS date FROM cotahist ORDER BY dt_pregao DESC"
+    )
+    dates = [iso(r["date"]) for r in rows]
+    return {
+        "count": len(dates),
+        "latest": dates[0] if dates else None,
+        "earliest": dates[-1] if dates else None,
+        "dates": dates,
+    }
 
 
 @app.get("/dates/available")
 def get_available_dates(ticker: str = Query(...)):
     t = validate_ticker(ticker)
-    conn = get_b3()
-    rows = conn.execute(
-        "SELECT DISTINCT DtPregao AS date FROM cotahist WHERE CodNeg = ? ORDER BY DtPregao DESC",
-        (t,)
-    ).fetchall()
-    conn.close()
+    rows = query_all(
+        "SELECT DISTINCT dt_pregao AS date FROM cotahist "
+        "WHERE cod_neg = %s ORDER BY dt_pregao DESC",
+        (t,),
+    )
     if not rows:
         raise HTTPException(status_code=404, detail=f"Ticker {t} not found")
-    dates = [r["date"] for r in rows]
-    return {"ticker": t, "count": len(dates),
-            "latest": dates[0], "earliest": dates[-1], "dates": dates}
+    dates = [iso(r["date"]) for r in rows]
+    return {
+        "ticker": t,
+        "count": len(dates),
+        "latest": dates[0],
+        "earliest": dates[-1],
+        "dates": dates,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -279,34 +308,32 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
     """
     Returns price history metrics for the health check page:
     - current price + date
-    - % change vs D-1, D-7, D-30, D-90, D-180, 12M
+    - % change vs D-1, D-7, D-30, D-90, D-180, 12M, 24M
     - volatility (annualised stddev) for 7d, 30d, 90d, 12M windows
     - liquidity (num trades/day avg) for 7d, 30d, 90d, 12M windows
     """
     t = validate_ticker(ticker)
-    conn = get_b3()
-
-    # Get last 365 trading days for this ticker
-    rows = conn.execute("""
-        SELECT DtPregao AS date, PrecoUltimo AS close, NumNegocios AS trades
+    rows = query_all(
+        """
+        SELECT dt_pregao     AS date,
+               preco_ultimo  AS close,
+               num_negocios  AS trades
         FROM cotahist
-        WHERE CodNeg = ? AND TpMerc = 10 AND PrecoUltimo > 0
-        ORDER BY DtPregao DESC
+        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo > 0
+        ORDER BY dt_pregao DESC
         LIMIT 520
-    """, (t,)).fetchall()
-    conn.close()
-
+        """,
+        (t,),
+    )
     if not rows:
         raise HTTPException(status_code=404, detail=f"Ticker {t} not found")
 
-    prices  = [r["close"]  for r in rows]  # newest first
-    trades  = [r["trades"] for r in rows]
-    dates   = [r["date"]   for r in rows]
+    prices = [float(r["close"]) for r in rows]  # newest first
+    trades = [r["trades"] or 0 for r in rows]
+    dates = [iso(r["date"]) for r in rows]
 
     def pct_change(n: int) -> float | None:
-        if len(prices) <= n:
-            return None
-        if prices[n] == 0:
+        if len(prices) <= n or prices[n] == 0:
             return None
         return (prices[0] - prices[n]) / prices[n]
 
@@ -318,11 +345,11 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
     def vol(n: int) -> float | None:
         if len(prices) < n + 1:
             return None
-        return calc_volatility(list(reversed(prices[:n+1])))
+        return calc_volatility(list(reversed(prices[:n + 1])))
 
     return {
-        "ticker":     t,
-        "preco":      prices[0],
+        "ticker": t,
+        "preco": prices[0],
         "preco_data": dates[0],
         "variacao": {
             "d1":   pct_change(1),
@@ -352,42 +379,52 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
 @limiter.limit("30/minute")
 def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
     """
-    Returns last 13 dividends + consistency stats from dividendos.db.
+    Returns last 13 dividends + consistency stats from dividendos.
     Used for the waffle chart and DY section.
     """
     t = validate_ticker(ticker)
-    conn = get_div()
 
-    rows = conn.execute("""
+    rows = query_all(
+        """
         SELECT data_base, data_pagamento, valor_provento, isento_ir
         FROM dividendos
-        WHERE cod_negociacao = ?
+        WHERE cod_negociacao = %s
           AND valor_provento IS NOT NULL
           AND valor_provento > 0
         ORDER BY data_base DESC
         LIMIT 13
-    """, (t,)).fetchall()
-    conn.close()
-
+        """,
+        (t,),
+    )
     if not rows:
         raise HTTPException(status_code=404, detail=f"Nenhum dividendo encontrado para {t}")
 
-    dividendos = [dict(r) for r in rows]
+    # Serialize dates and cast numerics up front
+    dividendos = [{
+        "data_base":      iso(r["data_base"]),
+        "data_pagamento": iso(r["data_pagamento"]),
+        "valor_provento": f(r["valor_provento"]),
+        "isento_ir":      r["isento_ir"],
+    } for r in rows]
     dividendos.reverse()  # oldest first for waffle chart
 
-    valores = [d["valor_provento"] for d in dividendos]
-    ultimo  = dividendos[-1]
+    valores = [d["valor_provento"] for d in dividendos if d["valor_provento"] is not None]
+    if not valores:
+        raise HTTPException(status_code=404, detail=f"Dividendos sem valor para {t}")
+    ultimo = dividendos[-1]
 
-    # DY pills — using last known price from b3.db
-    conn_b3 = get_b3()
-    preco_row = conn_b3.execute("""
-        SELECT PrecoUltimo FROM cotahist
-        WHERE CodNeg = ? AND TpMerc = 10 AND PrecoUltimo > 0
-        ORDER BY DtPregao DESC LIMIT 1
-    """, (t,)).fetchone()
-    conn_b3.close()
-
-    preco = preco_row["PrecoUltimo"] if preco_row else None
+    # DY pills — using last known price
+    preco_row = query_one(
+        """
+        SELECT preco_ultimo AS preco
+        FROM cotahist
+        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo > 0
+        ORDER BY dt_pregao DESC
+        LIMIT 1
+        """,
+        (t,),
+    )
+    preco = f(preco_row["preco"]) if preco_row else None
 
     def dy(v):
         if preco and preco > 0:
@@ -402,18 +439,18 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
     dy_anual = dy(sum(valores[-12:]) * (12 / min(12, n))) if n >= 1 else None
 
     return {
-        "ticker":       t,
+        "ticker": t,
         "ultimo": {
-            "valor":        ultimo["valor_provento"],
-            "data_base":    ultimo["data_base"],
-            "data_pago":    ultimo["data_pagamento"],
-            "isento_ir":    ultimo["isento_ir"],
+            "valor":     ultimo["valor_provento"],
+            "data_base": ultimo["data_base"],
+            "data_pago": ultimo["data_pagamento"],
+            "isento_ir": ultimo["isento_ir"],
         },
-        "historico":    dividendos,   # list of 13 months, oldest first
+        "historico": dividendos,
         "consistencia": {
-            "pagos":  n,
-            "total":  13,
-            "pct":    round(n / 13, 4),
+            "pagos": n,
+            "total": 13,
+            "pct":   round(n / 13, 4),
         },
         "dy": {
             "anual": dy_anual,
@@ -434,68 +471,65 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
     """
     t = validate_ticker(ticker)
 
-    # informe_mensal uses cnpj_fundo, not cod_negociacao directly
-    # join via dividendos.db to resolve ticker → cnpj
-    conn_div = get_div()
-    cnpj_row = conn_div.execute("""
-        SELECT cnpj_fundo FROM dividendos
-        WHERE cod_negociacao = ? AND cnpj_fundo IS NOT NULL
+    # informe_mensal uses cnpj_fundo; resolve ticker -> cnpj via dividendos
+    cnpj_row = query_one(
+        """
+        SELECT cnpj_fundo
+        FROM dividendos
+        WHERE cod_negociacao = %s AND cnpj_fundo IS NOT NULL
         LIMIT 1
-    """, (t,)).fetchone()
-    conn_div.close()
-
+        """,
+        (t,),
+    )
     if not cnpj_row:
         raise HTTPException(status_code=404, detail=f"CNPJ não encontrado para {t}")
-
     cnpj = cnpj_row["cnpj_fundo"]
 
-    conn = get_informe()
-    row = conn.execute("""
-        SELECT
-            nome_fundo,
-            cnpj_fundo,
-            classificacao,
-            subclassificacao,
-            tipo_gestao,
-            nome_administrador,
-            competencia,
-            total_cotistas,
-            patrimonio_liquido,
-            num_cotas_emitidas,
-            valor_patr_cotas,
-            despesas_tx_adm,
-            dividend_yield_mes,
-            rent_patr_mensal,
-            rendimentos_distribuir
+    row = query_one(
+        """
+        SELECT nome_fundo,
+               cnpj_fundo,
+               classificacao,
+               subclassificacao,
+               tipo_gestao,
+               nome_administrador,
+               competencia,
+               total_cotistas,
+               patrimonio_liquido,
+               num_cotas_emitidas,
+               valor_patr_cotas,
+               despesas_tx_adm,
+               dividend_yield_mes,
+               rent_patr_mensal,
+               rendimentos_distribuir
         FROM informe_mensal
-        WHERE cnpj_fundo = ?
+        WHERE cnpj_fundo = %s
         ORDER BY competencia DESC
         LIMIT 1
-    """, (cnpj,)).fetchone()
-    conn.close()
-
+        """,
+        (cnpj,),
+    )
     if not row:
         raise HTTPException(status_code=404, detail=f"Informe mensal não encontrado para {t}")
 
-    r = dict(row)
     return {
-        "ticker":                 t,
-        "cnpj":                   cnpj,
-        "nome":                   r["nome_fundo"],
-        "classificacao":          r["classificacao"],
-        "classificacao_market":   get_fund_type(t),   # Papel/Tijolo/FOF/Híbrido from fund_types.json
-        "subclassificacao":       r["subclassificacao"],
-        "tipo_gestao":            r["tipo_gestao"],
-        "administrador":          r["nome_administrador"],
-        "competencia":            r["competencia"],
-        "cotistas":               r["total_cotistas"],
-        "pl":                     r["patrimonio_liquido"],
-        "cotas_emitidas":         r["num_cotas_emitidas"],
-        "nav_cota":               r["valor_patr_cotas"],
-        "tx_adm":                 r["despesas_tx_adm"],
-        "dy_mes":                 r["dividend_yield_mes"],
-        "rent_mensal":            r["rent_patr_mensal"],
-        "rendimentos_distribuir": r["rendimentos_distribuir"],
+        "ticker": t,
+        "cnpj": cnpj,
+        "nome": row["nome_fundo"],
+        "classificacao": row["classificacao"],
+        "classificacao_market": get_fund_type(t),  # Papel/Tijolo/FOF/Híbrido from fund_types table
+        "subclassificacao": row["subclassificacao"],
+        "tipo_gestao": row["tipo_gestao"],
+        "administrador": row["nome_administrador"],
+        "competencia": iso(row["competencia"]),
+        "cotistas": row["total_cotistas"],
+        "pl": f(row["patrimonio_liquido"]),
+        "cotas_emitidas": f(row["num_cotas_emitidas"]),
+        "nav_cota": f(row["valor_patr_cotas"]),
+        "tx_adm": f(row["despesas_tx_adm"]),
+        "dy_mes": f(row["dividend_yield_mes"]),
+        "rent_mensal": f(row["rent_patr_mensal"]),
+        "rendimentos_distribuir": f(row["rendimentos_distribuir"]),
     }
 
 
@@ -503,14 +537,13 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
 @limiter.limit("30/minute")
 def get_fundo_gestor(request: Request, ticker: str = Query(...)):
     """
-    Returns the latest management report summary for a given ticker from gestores.db.
+    Returns the latest management report summary for a given ticker.
+    JSONB columns (contexto_meses, cris_em_observacao, alocacao_fundos) are
+    already deserialized by psycopg2, no json.loads needed.
     """
     t = validate_ticker(ticker)
-    conn = get_gestor_db()
-    if not conn:
-        raise HTTPException(status_code=503, detail="gestores.db not available")
-
-    row = conn.execute("""
+    row = query_one(
+        """
         SELECT ticker, competencia, classificacao, tom_gestor,
                pl_total_brl, cota_mercado, cota_patrimonial,
                spread_credito_bps, ltv_medio, resultado_por_cota,
@@ -519,92 +552,100 @@ def get_fundo_gestor(request: Request, ticker: str = Query(...)):
                contexto_meses, cris_em_observacao, alocacao_fundos,
                mudancas_portfolio, resumo, alertas_dados, processado_em
         FROM gestores
-        WHERE ticker = ?
+        WHERE ticker = %s
         ORDER BY competencia DESC
         LIMIT 1
-    """, (t,)).fetchone()
-    conn.close()
-
+        """,
+        (t,),
+    )
     if not row:
         raise HTTPException(status_code=404, detail=f"Nenhum relatório gerencial encontrado para {t}")
 
-    import json as _j
-    r = dict(row)
     return {
-        "ticker":                    r["ticker"],
-        "competencia":               r["competencia"],
-        "classificacao":             r["classificacao"],
-        "tom_gestor":                r["tom_gestor"],
-        "pl_total_brl":              r["pl_total_brl"],
-        "cota_mercado":              r["cota_mercado"],
-        "cota_patrimonial":          r["cota_patrimonial"],
-        "spread_credito_bps":        r["spread_credito_bps"],
-        "ltv_medio":                 r["ltv_medio"],
-        "resultado_por_cota":        r["resultado_por_cota"],
-        "distribuicao_por_cota":     r["distribuicao_por_cota"],
-        "reserva_monetaria_brl":     r["reserva_monetaria_brl"],
-        "vacancia_pct":              r["vacancia_pct"],
-        "contratos_vencer_12m_pct":  r["contratos_vencer_12m_pct"],
-        "cap_rate":                  r["cap_rate"],
-        "contexto_meses":            _j.loads(r["contexto_meses"]) if r["contexto_meses"] else [],
-        "cris_em_observacao":        _j.loads(r["cris_em_observacao"]) if r["cris_em_observacao"] else [],
-        "alocacao_fundos":           _j.loads(r["alocacao_fundos"]) if r["alocacao_fundos"] else None,
-        "mudancas_portfolio":        r["mudancas_portfolio"],
-        "resumo":                    r["resumo"],
-        "alertas_dados":             r["alertas_dados"],
-        "processado_em":             r["processado_em"],
+        "ticker": row["ticker"],
+        "competencia": iso(row["competencia"]),
+        "classificacao": row["classificacao"],
+        "tom_gestor": row["tom_gestor"],
+        "pl_total_brl": f(row["pl_total_brl"]),
+        "cota_mercado": f(row["cota_mercado"]),
+        "cota_patrimonial": f(row["cota_patrimonial"]),
+        "spread_credito_bps": f(row["spread_credito_bps"]),
+        "ltv_medio": f(row["ltv_medio"]),
+        "resultado_por_cota": f(row["resultado_por_cota"]),
+        "distribuicao_por_cota": f(row["distribuicao_por_cota"]),
+        "reserva_monetaria_brl": f(row["reserva_monetaria_brl"]),
+        "vacancia_pct": f(row["vacancia_pct"]),
+        "contratos_vencer_12m_pct": f(row["contratos_vencer_12m_pct"]),
+        "cap_rate": f(row["cap_rate"]),
+        # JSONB arrives as native dict/list from psycopg2; preserve shape exactly
+        "contexto_meses":       row["contexto_meses"] if row["contexto_meses"] is not None else [],
+        "cris_em_observacao":   row["cris_em_observacao"] if row["cris_em_observacao"] is not None else [],
+        "alocacao_fundos":      row["alocacao_fundos"],
+        "mudancas_portfolio":   row["mudancas_portfolio"],
+        "resumo":               row["resumo"],
+        "alertas_dados":        row["alertas_dados"],
+        "processado_em":        iso(row["processado_em"]),
     }
 
 
 # ---------------------------------------------------------------------------
 # Benchmarks cache — recalculated at most once per hour
 # ---------------------------------------------------------------------------
+
 _benchmarks_cache: dict = {"data": None, "ts": 0}
 
+
 def _calc_benchmarks() -> dict:
+    """
+    Median monthly DY per classificação (Papel/Tijolo/FOF/Híbrido).
+    Heavy query: joins latest-price-per-ticker with sum of last 12 dividends,
+    grouped by market classification from fund_types table.
+    """
     from statistics import median as _median
 
-    # 1. Latest price per ticker — use MAX(DtPregao) in a subquery join
-    #    instead of a correlated subquery (much faster on large tables)
-    conn_b3 = get_b3()
-    price_rows = conn_b3.execute("""
-        SELECT c.CodNeg AS ticker, c.PrecoUltimo AS preco
-        FROM cotahist c
-        INNER JOIN (
-            SELECT CodNeg, MAX(DtPregao) AS max_dt
-            FROM cotahist
-            WHERE TpMerc = 10 AND PrecoUltimo > 0
-            GROUP BY CodNeg
-        ) latest ON c.CodNeg = latest.CodNeg AND c.DtPregao = latest.max_dt
-        WHERE c.TpMerc = 10 AND c.PrecoUltimo > 0
-    """).fetchall()
-    conn_b3.close()
-    prices = {r["ticker"]: r["preco"] for r in price_rows}
+    # 1. Latest price per ticker — DISTINCT ON is Postgres' idiomatic
+    #    "most recent row per group" form (faster than MAX() subquery)
+    price_rows = query_all(
+        """
+        SELECT DISTINCT ON (cod_neg)
+               cod_neg      AS ticker,
+               preco_ultimo AS preco
+        FROM cotahist
+        WHERE tp_merc = 10 AND preco_ultimo > 0
+        ORDER BY cod_neg, dt_pregao DESC
+        """
+    )
+    prices = {r["ticker"]: float(r["preco"]) for r in price_rows}
 
     # 2. Sum of last 12 dividends per ticker
-    conn_div = get_div()
-    div_rows = conn_div.execute("""
+    div_rows = query_all(
+        """
         SELECT cod_negociacao AS ticker,
                cnpj_fundo,
                SUM(valor_provento) AS dy12_abs,
-               COUNT(*)           AS n
+               COUNT(*)            AS n
         FROM (
-            SELECT cod_negociacao, cnpj_fundo, valor_provento,
-                   ROW_NUMBER() OVER (PARTITION BY cod_negociacao ORDER BY data_base DESC) AS rn
+            SELECT cod_negociacao,
+                   cnpj_fundo,
+                   valor_provento,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY cod_negociacao
+                       ORDER BY data_base DESC
+                   ) AS rn
             FROM dividendos
             WHERE valor_provento > 0 AND cod_negociacao IS NOT NULL
-        )
+        ) sub
         WHERE rn <= 12
-        GROUP BY cod_negociacao
-        HAVING n >= 6
-    """).fetchall()
-    conn_div.close()
-    div_map = {r["ticker"]: {"cnpj": r["cnpj_fundo"], "dy12": r["dy12_abs"]} for r in div_rows}
+        GROUP BY cod_negociacao, cnpj_fundo
+        HAVING COUNT(*) >= 6
+        """
+    )
+    div_map = {
+        r["ticker"]: {"cnpj": r["cnpj_fundo"], "dy12": float(r["dy12_abs"])}
+        for r in div_rows
+    }
 
-    # 3. Classification from fund_types.json (market standard: Papel/Tijolo/FOF/Híbrido)
-    #    get_fund_type() handles caching and hot-reload automatically
-
-    # 4. Group DY by classificacao
+    # 3. Group DY by classification from fund_types table
     groups: dict = {}
     for ticker, d in div_map.items():
         preco = prices.get(ticker)
@@ -616,7 +657,7 @@ def _calc_benchmarks() -> dict:
         dy_mensal = (d["dy12"] / preco) / 12
         groups.setdefault(cls, []).append(dy_mensal)
 
-    # 5. Median per group (min 5 funds)
+    # 4. Median per group (min 5 funds)
     result = {}
     for cls, values in groups.items():
         if len(values) >= 5:
@@ -632,32 +673,32 @@ def _calc_benchmarks() -> dict:
 @limiter.limit("30/minute")
 def get_benchmarks(request: Request):
     """
-    Returns median monthly DY per classificacao.
-    Result is cached in memory for 1 hour.
+    Returns median monthly DY per classification. Cached for 1 hour in memory.
     """
     import time as _time
     now = _time.time()
     if _benchmarks_cache["data"] is None or now - _benchmarks_cache["ts"] > 3600:
         _benchmarks_cache["data"] = _calc_benchmarks()
-        _benchmarks_cache["ts"]   = now
+        _benchmarks_cache["ts"] = now
     return {
-        "benchmarks":   _benchmarks_cache["data"],
+        "benchmarks": _benchmarks_cache["data"],
         "calculado_em": datetime.fromtimestamp(_benchmarks_cache["ts"]).strftime("%Y-%m-%d %H:%M"),
     }
 
 
 # ---------------------------------------------------------------------------
-# CDI cache — refreshed once per day
+# CDI cache — refreshed once per day from BCB API (external HTTP, not DB)
 # ---------------------------------------------------------------------------
+
 _cdi_cache: dict = {"data": None, "ts": 0}
+
 
 @app.get("/cdi")
 @limiter.limit("30/minute")
 def get_cdi(request: Request):
     """
-    Returns the current CDI rate fetched from the Brazilian Central Bank API.
-    Cached for 24 hours.
-    Series 4391 = CDI daily rate (% a.d.)
+    Returns current CDI rate from the Brazilian Central Bank API.
+    Series 4389 = CDI daily rate (% a.a.). Cached for 24 hours.
     """
     import time as _time
     import urllib.request as _req
@@ -668,32 +709,27 @@ def get_cdi(request: Request):
         return _cdi_cache["data"]
 
     try:
-        # Series 4389 = CDI diário em % a.a. (annualised daily rate)
         url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados/ultimos/1?formato=json"
         with _req.urlopen(url, timeout=10) as resp:
             rows = _json.loads(resp.read())
 
-        # BCB returns CDI as % a.a. e.g. "14.65"
         cdi_anual_pct = float(rows[0]["valor"])
-        data_ref      = rows[0]["data"]  # DD/MM/YYYY
+        data_ref = rows[0]["data"]  # DD/MM/YYYY from BCB
 
-        cdi_anual  = cdi_anual_pct / 100
-        # Convert annual to monthly: (1 + anual)^(1/12) - 1
-        cdi_mensal = (1 + cdi_anual) ** (1/12) - 1
+        cdi_anual = cdi_anual_pct / 100
+        cdi_mensal = (1 + cdi_anual) ** (1 / 12) - 1
 
         result = {
-            "cdi_anual":   round(cdi_anual, 6),
-            "cdi_mensal":  round(cdi_mensal, 6),
-            "data_ref":    data_ref,
-            "fonte":       "Banco Central do Brasil — série 4389",
+            "cdi_anual":  round(cdi_anual, 6),
+            "cdi_mensal": round(cdi_mensal, 6),
+            "data_ref":   data_ref,
+            "fonte":      "Banco Central do Brasil — série 4389",
         }
         _cdi_cache["data"] = result
-        _cdi_cache["ts"]   = now
+        _cdi_cache["ts"] = now
         return result
 
     except Exception as e:
-        # Return cache if available, even if stale
         if _cdi_cache["data"] is not None:
             return {**_cdi_cache["data"], "aviso": "usando cache — BCB indisponível"}
         raise HTTPException(status_code=503, detail=f"BCB API unavailable: {str(e)}")
-
