@@ -49,6 +49,33 @@ export default function Home() {
         </div>
       </header>
 
+      {/* ========== STICKY SEARCH BAND ========== */}
+      <div className="search-band">
+        <div className="search-band-inner">
+          <div className="hero-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Buscar fundo — ex: MXRF11"
+              autoComplete="off"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              aria-label="Buscar fundo imobiliário por ticker"
+            />
+          </div>
+          <div className="search-hint band">
+            <span className="lbl">populares:</span>
+            {POPULAR.slice(0, 3).map(t => (
+              <button key={t} className="chip" onClick={() => goToFund(t)}>{t}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* ========== HERO ========== */}
       <section className="hero">
         <div className="container">
