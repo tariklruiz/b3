@@ -48,11 +48,17 @@
       })();
     </script>
 
+
+<style>
+  /* View switch: homepage markup vs React app root */
+  html[data-view="app"]  .fg-home-root { display: none !important; }
+  html[data-view="home"] #root          { display: none !important; }
+</style>
 <style>
   /* ============================================================
      TOKENS — mirror the real app (lovable/src/index.css)
      ============================================================ */
-  :root {
+  .fg-home-root {
     /* Brand exact palette */
     --blue-primary:  #185FA5;
     --blue-dark:     #0C447C;
@@ -90,7 +96,7 @@
   }
 
   /* DARK mode */
-  html[data-theme="dark"] {
+  html[data-theme="dark"] .fg-home-root {
     --bg:         #2C2C2A;
     --bg-2:       #1e1e1c;
     --bg-3:       #3D3D3B;
@@ -113,12 +119,12 @@
   }
 
   /* Accent swap — green is default; blue is the alternate */
-  html[data-accent="blue"][data-theme="light"] {
+  html[data-accent="blue"][data-theme="light"] .fg-home-root {
     --accent: var(--blue-primary);
     --accent-soft: rgba(24, 95, 165, 0.08);
     --accent-line: rgba(24, 95, 165, 0.2);
   }
-  html[data-accent="blue"][data-theme="dark"] {
+  html[data-accent="blue"][data-theme="dark"] .fg-home-root {
     --accent: #3a85cf;
     --accent-soft: rgba(58, 133, 207, 0.12);
     --accent-line: rgba(58, 133, 207, 0.3);
@@ -136,8 +142,8 @@
     overflow-x: hidden;
   }
   /* Belt-and-braces bg on html for theme changes (some hosts stale-cache var() on body) */
-  html[data-theme="light"] { background-color: #F1EFE8; color: #2C2C2A; }
-  html[data-theme="dark"]  { background-color: #2C2C2A; color: #F1EFE8; }
+  html[data-theme="light"] .fg-home-root { background-color: #F1EFE8; color: #2C2C2A; }
+  html[data-theme="dark"]  .fg-home-root { background-color: #2C2C2A; color: #F1EFE8; }
   a { color: inherit; text-decoration: none; }
   button { font-family: inherit; cursor: pointer; }
 
@@ -1456,13 +1462,9 @@
   }
 </style>
 
-<style>
-  /* View switch: homepage markup vs React app root */
-  html[data-view="app"]  .fg-home-root { display: none !important; }
-  html[data-view="home"] #root          { display: none !important; }
-</style>
 </head>
 <body>
+
 <div class="fg-home-root">
 
 <!-- ========== HEADER ========== -->
