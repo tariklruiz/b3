@@ -30,8 +30,7 @@ export default function Home() {
       <header className="site-header">
         <div className="site-header-inner">
           <a href="/" className="brand" aria-label="FII Guia">
-            <img src={isDark ? logoDark : logoLight} alt="" />
-            <span className="brand-text">FII <i>GUIA</i></span>
+            <img src={isDark ? logoDark : logoLight} alt="FII Guia" />
           </a>
           <nav className="nav" aria-label="Navegação principal">
             <a href="#what">O que é um FII</a>
@@ -302,8 +301,7 @@ export default function Home() {
           <div className="footer-grid">
             <div className="footer-col">
               <a href="/" className="brand" aria-label="FII Guia">
-                <img src={isDark ? logoDark : logoLight} alt="" />
-                <span className="brand-text">FII <i>GUIA</i></span>
+                <img src={isDark ? logoDark : logoLight} alt="FII Guia" />
               </a>
               <p className="footer-about">
                 Um guia gratuito e independente pra quem quer entender fundos imobiliários antes de investir. Dados com contexto, linguagem clara, zero viés.
