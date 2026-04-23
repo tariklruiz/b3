@@ -972,13 +972,30 @@
   }
   .dv-pct-pill .d { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
   .dv-waffle {
-    display: flex; flex-wrap: nowrap; gap: 5px; align-items: flex-start; padding-bottom: 2px;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    align-items: start;
+    padding-bottom: 2px;
   }
-  .dv-waffle .col { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 22px; }
+  @media (min-width: 721px) {
+    .dv-waffle {
+      display: flex; flex-wrap: nowrap;
+    }
+  }
+  .dv-waffle .col {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    min-width: 0;
+  }
   .dv-waffle .cell {
-    width: 22px; height: 22px; border-radius: 4px;
+    width: 100%; max-width: 28px; aspect-ratio: 1 / 1;
+    border-radius: 4px;
     transition: transform 0.15s, filter 0.15s;
     cursor: pointer;
+  }
+  @media (min-width: 721px) {
+    .dv-waffle .col { min-width: 22px; }
+    .dv-waffle .cell { width: 22px; height: 22px; aspect-ratio: auto; max-width: none; }
   }
   .dv-waffle .cell:hover { transform: scale(1.08); filter: brightness(1.1); }
   .dv-waffle .m {
@@ -1460,6 +1477,85 @@
     .ai-metric-row { grid-template-columns: 1fr 1fr; }
     .footer-grid { grid-template-columns: 1fr; }
     .cta-inner { flex-direction: column; align-items: flex-start; }
+  }
+
+  /* ============================================================
+     MOBILE: comprehensive pass for narrow viewports
+     ============================================================ */
+  @media (max-width: 720px) {
+    .site-header-inner { height: 56px; padding: 10px 20px; }
+    .brand-logo { height: 24px; }
+    .theme-toggle span { display: none; }
+    .theme-toggle { padding: 6px; }
+
+    /* Sticky search band — sticks below shorter mobile header, compact layout */
+    .search-band { top: 56px; }
+    .search-band-inner {
+      padding: 10px 20px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .search-band .search-wrap { min-width: 0; flex: 1 1 100%; max-width: none; }
+    .search-band .hero-search { height: 40px; padding: 0 12px; }
+    .search-band .hero-search input { font-size: 14px; }
+    .search-band-hint {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+    .search-band-hint::-webkit-scrollbar { display: none; }
+
+    /* Hero: tighter spacing, smaller preview, reorder preview above copy */
+    .hero { padding: 16px 0 48px; }
+    h1.hero-title { font-size: 34px; margin-bottom: 16px; }
+    .hero-sub { font-size: 15px; margin-bottom: 24px; }
+    .eyebrow { font-size: 9px; padding: 4px 10px 4px 7px; margin-bottom: 18px; }
+    .hero-grid { gap: 32px; }
+    .hero-pitch-list .item { font-size: 13px; }
+
+    /* Hero preview card — fits without overflow */
+    .hero-preview-chrome { font-size: 9px; padding: 6px 10px; }
+    .preview-card { padding: 18px; }
+    .pc-ticker { font-size: 18px; }
+    .pc-price { font-size: 26px; }
+    .pvp-headline .num { font-size: 22px; }
+    .annotation { display: none; }
+
+    /* What-is: cards stack, tighter padding */
+    .explain { padding: 24px 22px; }
+    .explain h3 { font-size: 17px; }
+    .explain .ill { height: 100px; }
+    .ill-quotas .qbuild { width: 100px; height: 112px; }
+    .ill-pocket .pocket { width: 124px; height: 76px; }
+
+    /* Dividend card */
+    .dv-card { flex-direction: column; padding: 20px; }
+    .dv-divider { display: none; }
+    .dv-big { font-size: 28px; }
+
+    /* AI card */
+    .ai-card { padding: 20px; }
+    .ai-card-head { flex-wrap: wrap; gap: 8px; }
+    .ai-summary { font-size: 14px; }
+    .ai-metric-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ai-pill { padding: 10px 12px; }
+
+    /* Sections: less vertical padding */
+    section.section { padding: 64px 0; }
+    .section-head { margin-bottom: 36px; }
+
+    /* Footer */
+    .footer-grid { gap: 28px; }
+    .disclaimer { padding: 24px 20px; font-size: 11px; }
+  }
+
+  /* Very narrow phones */
+  @media (max-width: 400px) {
+    h1.hero-title { font-size: 30px; }
+    .section-head h2, .ai-copy h2, .cta-inner h2 { font-size: 24px; }
+    .ai-metric-row { grid-template-columns: 1fr; }
   }
 </style>
 
