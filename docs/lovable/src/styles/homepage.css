@@ -22,8 +22,8 @@
 
   /* Borders */
   --fg-border:    hsl(var(--border));
-  --fg-border-2:  hsl(var(--border) / 0.5);
-  --fg-hairline:  hsl(var(--border) / 0.6);
+  --fg-border-2:  hsl(60 2% 17% / 0.08);
+  --fg-hairline:  hsl(60 2% 17% / 0.14);
 
   /* Semantic status */
   --fg-profit:    hsl(var(--profit));
@@ -52,8 +52,12 @@
   color: var(--fg-text);
 }
 
-/* Dark mode — app uses .dark class on <html>, so bump accent opacities */
+/* Dark mode — app uses .dark class on <html>. Override hairlines and
+   border-2 to be light-on-dark (matches handoff's rgba(241,239,232,0.14)
+   instead of the app's darker solid border). Also bumps accent opacities. */
 .dark .fg-home {
+  --fg-border-2: hsl(47 24% 93% / 0.06);
+  --fg-hairline: hsl(47 24% 93% / 0.14);
   --fg-accent-soft: hsl(var(--accent) / 0.10);
   --fg-accent-line: hsl(var(--accent) / 0.28);
 }
