@@ -321,17 +321,17 @@
 .fg-home .section { padding: var(--fg-row-pad) 0; border-top: 0.5px solid var(--fg-hairline); }
 @media (max-width: 720px) { .fg-home .section { padding: 60px 0; } }
 
-.fg-home .section-head { max-width: 760px; margin: 0 auto 48px; text-align: center; }
+.fg-home .section-head { max-width: 720px; margin: 0 0 52px; }
 .fg-home .section-head .kicker { display: block; margin-bottom: 14px; }
 .fg-home .section-head h2 {
   font-family: var(--fg-font-sans); font-weight: 600;
-  font-size: 40px; line-height: 1.1; letter-spacing: -0.02em;
+  font-size: 40px; line-height: 1.08; letter-spacing: -0.02em;
   margin: 0 0 16px; color: var(--fg-text); text-wrap: balance;
 }
 .fg-home .section-head h2 .em { color: var(--fg-accent); }
 .fg-home .section-head p {
   font-size: 16px; line-height: 1.55; color: var(--fg-text-2);
-  margin: 0 auto; max-width: 620px;
+  margin: 0; max-width: 620px;
 }
 @media (max-width: 720px) { .fg-home .section-head h2 { font-size: 30px; } }
 
@@ -361,8 +361,9 @@
 .fg-home .ill {
   height: 140px;
   display: grid; place-items: center;
-  background: var(--fg-bg-3); border-radius: var(--fg-radius);
+  background: var(--fg-bg-4); border-radius: var(--fg-radius);
   margin-bottom: 4px;
+  border: 0.5px solid var(--fg-hairline);
 }
 
 /* Illustration: quotas grid */
@@ -430,7 +431,6 @@
    ============================================================ */
 .fg-home .principles-grid {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
-  max-width: 860px; margin: 0 auto;
 }
 @media (max-width: 720px) { .fg-home .principles-grid { grid-template-columns: 1fr; } }
 .fg-home .principle {
