@@ -83,7 +83,7 @@
     --popover: 60 4% 12%;
     --popover-foreground: 47 24% 93%;
 
-    --primary: 210 75% 37%;
+    --primary: 161 69% 37%;         /* dark theme primary = GREEN */
     --primary-foreground: 47 24% 93%;
 
     --secondary: 60 2% 24%;         /* #3D3D3B */
