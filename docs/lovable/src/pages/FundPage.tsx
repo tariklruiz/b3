@@ -85,23 +85,27 @@ export default function FundPage() {
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-300">
-      {/* Top Bar */}
-      <header className="bg-card/90 backdrop-blur-xl border-b border-border px-5 sm:px-7 h-[56px] flex items-center justify-between sticky top-0 z-50 transition-colors">
-        <a href="/" className="flex items-center group" aria-label="Ir para a página inicial">
-          <img
-            src={isDark ? logoDark : logoLight}
-            alt="FII Guia"
-            className="h-9 w-auto block"
-          />
-        </a>
-        <button
-          onClick={toggle}
-          aria-label={isDark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-secondary text-secondary-foreground text-xs font-mono hover:bg-muted transition-colors"
-        >
-          {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-          {isDark ? 'tema claro' : 'tema escuro'}
-        </button>
+      {/* Header — matches the homepage */}
+      <header className="sticky top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="max-w-[1200px] mx-auto flex items-center justify-between px-5 sm:px-10 h-16">
+          <a href="/" className="inline-flex items-center gap-2.5" aria-label="FII Guia">
+            <img src={isDark ? logoDark : logoLight} alt="FII Guia" className="h-7 w-auto block" />
+          </a>
+          <nav className="hidden md:flex items-center gap-0.5" aria-label="Navegação principal">
+            <a href="/#what"       className="text-[13px] text-muted-foreground px-3 py-2 rounded-lg hover:bg-secondary hover:text-foreground transition-colors">O que é um FII</a>
+            <a href="/#context"    className="text-[13px] text-muted-foreground px-3 py-2 rounded-lg hover:bg-secondary hover:text-foreground transition-colors">Dados com contexto</a>
+            <a href="/#ai"         className="text-[13px] text-muted-foreground px-3 py-2 rounded-lg hover:bg-secondary hover:text-foreground transition-colors">Resumo do gestor</a>
+            <a href="/#principles" className="text-[13px] text-muted-foreground px-3 py-2 rounded-lg hover:bg-secondary hover:text-foreground transition-colors">Princípios</a>
+          </nav>
+          <button
+            onClick={toggle}
+            aria-label={isDark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/60 bg-card text-muted-foreground text-[11px] font-mono tracking-wider hover:text-foreground hover:border-border transition-colors"
+          >
+            {isDark ? <Sun className="w-[13px] h-[13px]" /> : <Moon className="w-[13px] h-[13px]" />}
+            <span>{isDark ? 'tema claro' : 'tema escuro'}</span>
+          </button>
+        </div>
       </header>
 
       {/* Search */}
