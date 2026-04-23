@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark" data-accent="green" data-hero="explainer">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FII Guia — Análise de Fundos Imobiliários</title>
+    <title>FII Guia — Entenda antes de investir em fundos imobiliários</title>
     <meta name="description" content="Análise visual de Fundos Imobiliários (FIIs): preço, P/VP, dividendos, volatilidade, liquidez e risco em uma só tela." />
     <meta name="author" content="FII Guia" />
 
@@ -11,7 +11,7 @@
     <link rel="icon" type="image/png" href="/logo_claro.png" />
     <link rel="apple-touch-icon" href="/logo_claro.png" />
 
-    <!-- Open Graph — WhatsApp / social preview -->
+    <!-- Open Graph -->
     <meta property="og:title" content="FII Guia - O Guia de Fundos Imobiliários para iniciantes" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://fiiguia.com.br" />
@@ -24,11 +24,2081 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="FII Guia - O Guia de Fundos Imobiliários para iniciantes" />
     <meta name="twitter:image" content="https://fiiguia.com.br/logo_e_tipo_escuro.png" />
-    <script type="module" crossorigin src="/assets/index-PdyGRd-T.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DGalZ_kb.css">
-  </head>
 
-  <body>
-    <div id="root"></div>
-  </body>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Initial theme + view resolution (runs before paint to avoid flash) -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('fg-theme');
+          var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+          var resolved = stored || (light ? 'light' : 'dark');
+          document.documentElement.dataset.theme = resolved;
+          document.documentElement.dataset.accent = 'green';
+          var hash = window.location.hash || '';
+          document.documentElement.dataset.view = /^#\/\w/.test(hash) ? 'app' : 'home';
+        } catch (e) {
+          // Fail safe: leave defaults from the html tag attributes.
+          document.documentElement.dataset.theme = document.documentElement.dataset.theme || 'dark';
+          document.documentElement.dataset.view  = 'home';
+        }
+      })();
+    </script>
+
+<style>
+  /* ============================================================
+     TOKENS — mirror the real app (lovable/src/index.css)
+     ============================================================ */
+  :root {
+    /* Brand exact palette */
+    --blue-primary:  #185FA5;
+    --blue-dark:     #0C447C;
+    --green-primary: #1D9E75;
+    --green-dark:    #0F6E56;
+
+    /* LIGHT default */
+    --bg:         #F1EFE8;
+    --bg-2:       #ffffff;
+    --bg-3:       #e8e6df;
+    --bg-4:       #dddad2;
+    --text:       #2C2C2A;
+    --text-2:     #5a5854;
+    --text-3:     #9a9890;
+    --border:     #d0cdc5;
+    --border-2:   rgba(44, 44, 42, 0.08);
+    --hairline:   rgba(44, 44, 42, 0.14);
+
+    --profit:     #1D9E75;
+    --loss:       #c0392b;
+    --amber:      #b07200;
+    --info-blue:  #185FA5;
+
+    --accent:     var(--green-primary);
+    --accent-soft: rgba(29, 158, 117, 0.08);
+    --accent-line: rgba(29, 158, 117, 0.22);
+
+    --radius:     10px;
+    --radius-lg:  14px;
+
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    --row-pad: 100px;
+  }
+
+  /* DARK mode */
+  html[data-theme="dark"] {
+    --bg:         #2C2C2A;
+    --bg-2:       #1e1e1c;
+    --bg-3:       #3D3D3B;
+    --bg-4:       #343432;
+    --text:       #F1EFE8;
+    --text-2:     #b8b4aa;
+    --text-3:     #7a7870;
+    --border:     #3a3a38;
+    --border-2:   rgba(241, 239, 232, 0.06);
+    --hairline:   rgba(241, 239, 232, 0.14);
+
+    --profit:     #2EBD8B;
+    --loss:       #f05252;
+    --amber:      #f5a623;
+    --info-blue:  #3a85cf;
+
+    --accent:     var(--green-primary);
+    --accent-soft: rgba(29, 158, 117, 0.10);
+    --accent-line: rgba(29, 158, 117, 0.28);
+  }
+
+  /* Accent swap — green is default; blue is the alternate */
+  html[data-accent="blue"][data-theme="light"] {
+    --accent: var(--blue-primary);
+    --accent-soft: rgba(24, 95, 165, 0.08);
+    --accent-line: rgba(24, 95, 165, 0.2);
+  }
+  html[data-accent="blue"][data-theme="dark"] {
+    --accent: #3a85cf;
+    --accent-soft: rgba(58, 133, 207, 0.12);
+    --accent-line: rgba(58, 133, 207, 0.3);
+  }
+
+  * { box-sizing: border-box; }
+  html { margin: 0; padding: 0; background-color: var(--bg); color: var(--text); }
+  body {
+    margin: 0; padding: 0;
+    background-color: transparent;
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s, color 0.2s;
+    overflow-x: hidden;
+  }
+  /* Belt-and-braces bg on html for theme changes (some hosts stale-cache var() on body) */
+  html[data-theme="light"] { background-color: #F1EFE8; color: #2C2C2A; }
+  html[data-theme="dark"]  { background-color: #2C2C2A; color: #F1EFE8; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+
+  .mono  { font-family: var(--font-mono); letter-spacing: 0.02em; }
+  .kicker {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .kicker.accent { color: var(--accent); }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+
+  .hairline-top    { border-top: 0.5px solid var(--hairline); }
+  .hairline-bottom { border-bottom: 0.5px solid var(--hairline); }
+
+  /* ============================================================
+     HEADER
+     ============================================================ */
+  .site-header {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in oklab, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    border-bottom: 0.5px solid var(--hairline);
+  }
+  .site-header-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 40px;
+    height: 64px;
+  }
+  .brand { display: inline-flex; align-items: center; gap: 10px; }
+  .brand-logo { height: 28px; width: auto; display: block; }
+  html[data-theme="dark"]  .brand-logo-light { display: none; }
+  html[data-theme="light"] .brand-logo-dark  { display: none; }
+  .brand-mark { width: 28px; height: 28px; display: block; }
+  .brand-text {
+    font-family: var(--font-sans); font-weight: 700;
+    letter-spacing: 0.04em; font-size: 14px;
+    color: var(--text);
+  }
+  .brand-text i { font-style: normal; color: var(--text-3); font-weight: 500; letter-spacing: 0.12em; }
+
+  .nav { display: flex; gap: 2px; align-items: center; }
+  .nav a {
+    font-size: 13px; color: var(--text-2);
+    padding: 8px 12px; border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav a:hover { background: var(--bg-3); color: var(--text); }
+
+  .theme-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px 6px 10px; border-radius: 999px;
+    border: 0.5px solid var(--hairline);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--border); }
+  .theme-toggle svg { width: 13px; height: 13px; }
+
+  /* ============================================================
+     HERO — Search-first
+     ============================================================ */
+  .hero {
+    padding: 28px 0 72px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 5px 12px 5px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    border: 0.5px solid var(--accent-line);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 26px;
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  h1.hero-title {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 58px;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 22px;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  h1.hero-title .em {
+    font-weight: 600;
+    color: var(--accent);
+  }
+  h1.hero-title .hl {
+    position: relative;
+    white-space: nowrap;
+  }
+  h1.hero-title .hl::after {
+    content: "";
+    position: absolute; left: -2px; right: -2px;
+    bottom: 0.08em; height: 0.3em;
+    background: var(--accent-soft);
+    z-index: -1;
+    border-radius: 2px;
+  }
+  .hero-sub {
+    font-size: 17px; line-height: 1.55;
+    color: var(--text-2);
+    margin: 0 0 36px;
+    max-width: 520px;
+    text-wrap: pretty;
+  }
+
+  /* Big search input — hero-scale */
+  .hero-search {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--bg-2);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 0 16px;
+    height: 60px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 12px 28px -16px rgba(0,0,0,0.08);
+    transition: border-color 0.15s, box-shadow 0.2s;
+    max-width: 540px;
+  }
+  .hero-search:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 0 0 3px var(--accent-soft);
+  }
+  .hero-search svg { width: 18px; height: 18px; color: var(--text-3); flex: 0 0 auto; }
+  .hero-search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--font-mono);
+    font-size: 15px;
+    height: 100%;
+  }
+  .hero-search input::-moz-placeholder { color: var(--text-3); }
+  .hero-search input::placeholder { color: var(--text-3); }
+  .hero-search .kbd {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-3);
+    border: 0.5px solid var(--hairline);
+    padding: 3px 8px; border-radius: 5px;
+    background: var(--bg-3);
+  }
+
+  .search-hint {
+    margin-top: 14px;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-3); letter-spacing: 0.04em;
+    display: flex; gap: 14px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .search-hint span.lbl { color: var(--text-3); }
+  .search-hint button.chip {
+    background: transparent;
+    border: 0.5px solid var(--hairline);
+    color: var(--text-2);
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .search-hint button.chip:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+
+  /* Search autocomplete dropdown */
+  .search-wrap { position: relative; max-width: 540px; }
+  .search-results {
+    position: absolute; left: 0; right: 0; top: calc(100% + 8px);
+    background: var(--bg-2);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 6px;
+    z-index: 40;
+    box-shadow: 0 16px 40px -8px rgba(0,0,0,0.12);
+    display: none;
+  }
+  .search-results.open { display: block; }
+  .search-results .sr-head {
+    padding: 10px 12px 6px; font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+
+  /* Search band — sits directly below header */
+  .search-band {
+    position: relative; z-index: 40;
+    background: color-mix(in oklab, var(--bg) 92%, transparent);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    border-bottom: 0.5px solid var(--hairline);
+  }
+  .search-band-inner {
+    max-width: 1200px; margin: 0 auto;
+    padding: 14px 40px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .search-band .search-wrap { flex: 1; max-width: 640px; }
+  .search-band .hero-search {
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    box-shadow: none;
+    max-width: none;
+  }
+  .search-band .hero-search input {
+    font-size: 14px;
+  }
+  .search-band .hero-search svg { width: 16px; height: 16px; }
+  .search-band .hero-search .kbd { display: none; }
+  .search-band-hint {
+    display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;
+  }
+  .search-band-hint .lbl {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.08em; text-transform: lowercase;
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  .search-band-hint button.chip {
+    background: transparent;
+    border: 0.5px solid var(--hairline);
+    color: var(--text-2);
+    font-family: var(--font-mono); font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .search-band-hint button.chip:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+  @media (max-width: 820px) {
+    .search-band-inner { padding: 10px 20px; gap: 10px; }
+    .search-band-hint { display: none; }
+  }
+  .sr-item {
+    display: grid; grid-template-columns: 76px 1fr auto auto;
+    align-items: center; gap: 14px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .sr-item:hover, .sr-item.active { background: var(--bg-3); }
+  .sr-ticker { font-family: var(--font-mono); font-weight: 600; font-size: 13px; }
+  .sr-name   { font-size: 13px; color: var(--text-2); }
+  .sr-price  { font-family: var(--font-mono); font-size: 12px; color: var(--text); }
+
+  /* Risk tag — reused across the page */
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 999px;
+    letter-spacing: 0.06em; text-transform: lowercase;
+    border: 0.5px solid;
+  }
+  .tag .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .tag.low   { color: var(--profit); background: color-mix(in oklab, var(--profit) 10%, transparent); border-color: color-mix(in oklab, var(--profit) 30%, transparent); }
+  .tag.med   { color: var(--amber);  background: color-mix(in oklab, var(--amber) 10%, transparent);  border-color: color-mix(in oklab, var(--amber) 30%, transparent); }
+  .tag.high  { color: var(--loss);   background: color-mix(in oklab, var(--loss) 10%, transparent);   border-color: color-mix(in oklab, var(--loss) 30%, transparent); }
+  .tag.neutral { color: var(--text-2); background: var(--bg-3); border-color: var(--hairline); }
+
+  /* Hero stats — honest, minimal, no "487 FIIs" */
+  .hero-pitch-list {
+    display: flex; flex-direction: column; gap: 14px;
+    margin-top: 34px;
+    padding-top: 28px;
+    border-top: 0.5px solid var(--hairline);
+    max-width: 520px;
+  }
+  .hero-pitch-list .item {
+    display: flex; align-items: flex-start; gap: 12px;
+    font-size: 14px; line-height: 1.5; color: var(--text-2);
+  }
+  .hero-pitch-list .item b { color: var(--text); font-weight: 600; }
+  .hero-pitch-list .item .mk {
+    flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%;
+    border: 0.5px solid var(--accent-line);
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 9px;
+    margin-top: 3px;
+  }
+
+  /* ============================================================
+     HERO VISUAL — live preview card (mini version of the real app)
+     ============================================================ */
+  .hero-preview {
+    position: relative;
+    background: var(--bg-3);
+    border: 0.5px solid var(--hairline);
+    border-radius: 18px;
+    padding: 18px;
+  }
+  .hero-preview-chrome {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 8px 12px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-3); letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .hero-preview-chrome .dots {
+    display: inline-flex; gap: 5px;
+  }
+  .hero-preview-chrome .dots i {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--bg-4); display: inline-block;
+  }
+  .preview-card {
+    background: var(--bg-2);
+    border: 0.5px solid var(--hairline);
+    border-radius: 12px;
+    padding: 22px 22px 18px;
+    position: relative;
+  }
+  .preview-card + .preview-card { margin-top: 10px; }
+
+  .pc-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 14px;
+  }
+  .pc-ticker {
+    font-family: var(--font-mono); font-weight: 700;
+    font-size: 26px; letter-spacing: -0.01em;
+    line-height: 1; color: var(--text);
+  }
+  .pc-name { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); letter-spacing: 0.04em; margin-top: 6px; }
+
+  .pc-price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }
+  .pc-price {
+    font-family: var(--font-sans); font-weight: 600;
+    font-size: 36px; line-height: 1; letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .pc-date { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .pc-seclabel {
+    display: flex; align-items: center; gap: 8px;
+    margin: 18px 0 10px;
+  }
+  .pc-seclabel .t {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .pc-seclabel .line {
+    flex: 1; height: 0.5px;
+    background: linear-gradient(90deg, var(--hairline), transparent);
+  }
+
+  /* P/VP gauge — copied pattern from PriceCard.tsx */
+  .pvp-headline { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .pvp-headline .num {
+    font-family: var(--font-sans); font-weight: 600;
+    font-size: 32px; line-height: 1; letter-spacing: -0.02em;
+  }
+  .pvp-headline .desc {
+    font-size: 12px; color: var(--text-2);
+  }
+  .pvp-headline .desc b { color: var(--text); font-weight: 600; }
+  .pvp-bar {
+    position: relative; height: 8px; border-radius: 4px;
+    background: var(--bg-3);
+    overflow: hidden;
+  }
+  .pvp-bar .fill {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--blue-primary), var(--green-primary));
+    width: 52%;
+    border-radius: 4px;
+  }
+  .pvp-bar .tick {
+    position: absolute; top: -3px; bottom: -3px;
+    width: 1.5px;
+    background: var(--text);
+    left: 50%; transform: translateX(-1px);
+    border-radius: 2px;
+  }
+  .pvp-scale {
+    display: flex; justify-content: space-between;
+    margin-top: 7px;
+    font-family: var(--font-mono); font-size: 9px;
+    color: var(--text-3); letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Tooltip callout — the "em português claro" flourish */
+  .pc-callout {
+    margin-top: 16px;
+    background: var(--accent-soft);
+    border: 0.5px solid var(--accent-line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex; gap: 12px;
+  }
+  .pc-callout .ic {
+    width: 20px; height: 20px; border-radius: 5px;
+    background: var(--accent); color: var(--bg-2);
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 700; font-size: 11px;
+  }
+  .pc-callout .txt { font-size: 12.5px; line-height: 1.5; color: var(--text); }
+  .pc-callout .txt b { color: var(--text); font-weight: 600; }
+  .pc-callout .txt em { font-style: normal; color: var(--accent); font-weight: 600; }
+
+  /* Annotation arrows on the hero preview */
+  .annotation {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    display: flex; align-items: center; gap: 10px;
+    white-space: nowrap;
+  }
+  .annotation .line { display: block; width: 32px; height: 0.5px; background: var(--hairline); }
+  .annotation.a1 { right: -124px; top: 50px; }
+  .annotation.a2 { right: -150px; top: 150px; }
+  .annotation.a3 { right: -160px; bottom: 90px; color: var(--accent); }
+  .annotation.a3 .line { background: var(--accent); }
+
+  /* ============================================================
+     Section base
+     ============================================================ */
+  section.section { padding: 96px 0; position: relative; }
+  .section-head { max-width: 720px; margin-bottom: 52px; }
+  .section-head h2 {
+    font-family: var(--font-sans);
+    font-size: 40px; line-height: 1.08;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 12px 0 14px;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .section-head h2 .em { color: var(--accent); font-weight: 600; }
+  .section-head p {
+    font-size: 16px; line-height: 1.55; color: var(--text-2);
+    text-wrap: pretty;
+    margin: 0;
+    max-width: 620px;
+  }
+.section-head .sh-note {
+    margin-top: 18px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 12px; line-height: 1.7;
+    color: var(--text-2);
+    background: color-mix(in oklab, var(--accent) 8%, transparent);
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
+    max-width: 680px;
+  }
+.section-head .sh-note .sh-note-body { flex: 1; }
+.section-head .sh-note b {
+    display: inline-block;
+    color: var(--text); font-weight: 500;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-style: italic;
+    margin: 4px 0 2px;
+  }
+.section-head .sh-note-dot {
+    flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); margin-top: 7px;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+  }
+
+  /* ============================================================
+     "O que é um FII" — 3 ideas
+     ============================================================ */
+  .what-is { background: var(--bg-2); border-top: 0.5px solid var(--hairline); border-bottom: 0.5px solid var(--hairline); }
+
+  .explain-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+    border: 0.5px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-2);
+  }
+  .explain {
+    padding: 32px 28px 32px;
+    position: relative;
+    border-right: 0.5px solid var(--hairline);
+    background: var(--bg-2);
+  }
+  .explain:last-child { border-right: none; }
+  .explain .num {
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.18em;
+    color: var(--accent);
+    margin-bottom: 26px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .explain .ill {
+    height: 110px; margin: 0 0 24px;
+    border-radius: 8px;
+    position: relative; overflow: hidden;
+    background: var(--bg);
+    border: 0.5px solid var(--hairline);
+  }
+  .explain h3 {
+    font-family: var(--font-sans); font-size: 20px; font-weight: 600;
+    margin: 0 0 10px; letter-spacing: -0.01em;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .explain p {
+    font-size: 14px; line-height: 1.6; color: var(--text-2);
+    margin: 0;
+    text-wrap: pretty;
+  }
+  .explain p b { color: var(--text); font-weight: 600; }
+
+  /* Illustrations - pure CSS / SVG
+     01 — Building as a grid of quotas; one quota is green = "you own one"
+     02 — Wallet/pocket receiving a coin (monthly rent hits your account)
+     03 — Price line wobbles; dividend bars stay steady underneath */
+
+  /* 01: building grid of quotas */
+  .ill-quotas {
+    position: relative; height: 100%;
+    padding: 16px;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .ill-quotas .qbuild {
+    width: 126px; height: 138px;
+    background: var(--bg-3);
+    border: 0.5px solid var(--hairline);
+    border-radius: 4px 4px 0 0;
+    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, 1fr);
+    gap: 3px; padding: 6px;
+    position: relative;
+  }
+  .ill-quotas .qbuild::after {
+    /* Roof cap */
+    content: ""; position: absolute; left: -8px; right: -8px; top: -6px;
+    height: 6px;
+    background: var(--text-3);
+    border-radius: 2px 2px 0 0;
+    opacity: 0.35;
+  }
+  .ill-quotas .qbuild .q {
+    background: var(--bg-2);
+    border: 0.5px solid var(--border-2);
+    border-radius: 1px;
+  }
+  .ill-quotas .qbuild .q.mine {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft), 0 0 14px color-mix(in oklab, var(--accent) 70%, transparent);
+    position: relative;
+  }
+  .ill-quotas .qbuild .q.mine::after {
+    content: ""; position: absolute; inset: 2px;
+    border: 1px dashed color-mix(in oklab, var(--bg) 70%, transparent);
+    border-radius: 1px;
+  }
+  .ill-quotas .qlabel {
+    position: absolute; right: 18px; bottom: 22px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ill-quotas .qlabel::before {
+    content: ""; width: 18px; height: 0.5px; background: var(--accent);
+  }
+
+  /* 02: wallet/pocket receiving money */
+  .ill-pocket {
+    position: relative; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .ill-pocket .pocket {
+    position: relative;
+    width: 150px; height: 90px;
+    background: var(--bg-3);
+    border: 0.5px solid var(--hairline);
+    border-radius: 4px 4px 10px 10px;
+  }
+  .ill-pocket .pocket::before {
+    /* Pocket opening */
+    content: ""; position: absolute; left: 14px; right: 14px; top: -1px;
+    height: 6px;
+    border-top: 0.5px dashed var(--text-3);
+  }
+  .ill-pocket .coin {
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg-2);
+    border: 0.5px solid color-mix(in oklab, var(--accent) 70%, black);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 700; font-size: 13px;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+    animation: coin-drop 2.8s ease-in-out infinite;
+  }
+  @keyframes coin-drop {
+    0%   { top: -40px; opacity: 0; }
+    20%  { top: -40px; opacity: 1; }
+    55%  { top: 32px; opacity: 1; }
+    70%  { top: 32px; opacity: 0; }
+    100% { top: 32px; opacity: 0; }
+  }
+  .ill-pocket .plabel {
+    position: absolute; right: 22px; top: 28px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  .ill-pocket .plabel b { color: var(--accent); font-weight: 600; }
+
+  /* 03: two amplitude tracks — cota oscilla wide, dividendo steady */
+  .ill-amp {
+    height: 100%; padding: 14px 18px;
+    display: flex; flex-direction: column; justify-content: center; gap: 16px;
+  }
+  .ill-amp .track {
+    display: grid;
+    grid-template-columns: 54px 1fr 40px;
+    align-items: center;
+    gap: 10px;
+  }
+  .ill-amp .t-lbl {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-3); text-align: right;
+  }
+  .ill-amp .t-lbl b { color: var(--text); font-weight: 600; display: block; }
+  .ill-amp .track.div .t-lbl b { color: var(--accent); }
+  .ill-amp .t-range {
+    position: relative; height: 22px;
+  }
+  .ill-amp .t-rail {
+    position: absolute; inset: 50% 0 auto 0; height: 0.5px;
+    background: var(--hairline); transform: translateY(-50%);
+  }
+  .ill-amp .t-band {
+    position: absolute; top: 4px; bottom: 4px;
+    border-radius: 2px;
+    background: color-mix(in oklab, var(--text-2) 18%, transparent);
+    border: 0.5px solid color-mix(in oklab, var(--text-2) 40%, transparent);
+  }
+  .ill-amp .track.div .t-band {
+    background: var(--accent-soft);
+    border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+  }
+  .ill-amp .t-dot {
+    position: absolute; top: 50%; width: 10px; height: 10px;
+    border-radius: 50%; transform: translate(-50%, -50%);
+    background: var(--bg-2); border: 1.5px solid var(--text-2);
+  }
+  .ill-amp .track.div .t-dot { border-color: var(--accent); }
+  .ill-amp .t-dot.live {
+    background: var(--text); border-color: var(--text);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--text) 18%, transparent);
+  }
+  .ill-amp .track.div .t-dot.live {
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .ill-amp .t-amp {
+    font-family: var(--font-mono); font-size: 11px;
+    font-weight: 600;
+    color: var(--loss); text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+  .ill-amp .track.div .t-amp { color: var(--accent); }
+  .ill-amp .foot {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-3); text-align: center;
+    padding-top: 2px;
+  }
+
+  /* ============================================================
+     "Dados com contexto" — the flagship philosophy section
+     ============================================================ */
+  .context-grid {
+    display: grid; grid-template-columns: 1fr;
+    gap: 56px;
+    align-items: flex-start;
+  }
+  .diff-list {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 32px 48px;
+  }
+  @media (max-width: 820px) {
+    .diff-list { grid-template-columns: 1fr; gap: 24px; }
+  }
+
+  .metric-demo {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+  .metric-demo-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 4px 12px;
+    background: transparent;
+    border-bottom: none;
+  }
+  .metric-demo-head .lbl {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-3); letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .metric-demo-head .tkr {
+    font-family: var(--font-mono); font-weight: 600; font-size: 12px;
+  }
+  .metric-demo-body {
+    padding: 0;
+  }
+  .md-seclabel {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .md-seclabel .t {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  .md-seclabel .line {
+    flex: 1; height: 0.5px;
+    background: linear-gradient(90deg, var(--hairline), transparent);
+  }
+
+  .md-row { padding: 16px 0; border-top: 0.5px solid var(--hairline); }
+  .md-row:first-of-type { border-top: none; padding-top: 0; }
+
+  .md-metric-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .md-metric-label {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .md-metric-value {
+    font-family: var(--font-sans); font-weight: 600;
+    font-size: 24px; letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .md-metric-value .unit {
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
+    margin-left: 6px; font-weight: 400;
+  }
+  .md-context {
+    font-size: 13px; line-height: 1.5; color: var(--text-2);
+    margin: 4px 0 8px;
+    max-width: 440px;
+  }
+  .md-context b { color: var(--text); font-weight: 600; }
+
+  /* Dividend card — mirrors production DividendCard (two-pane) */
+  .dv-card {
+    display: flex; align-items: stretch;
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .dv-left { flex: 1 1 auto; padding: 26px 28px; min-width: 0; }
+  .dv-divider { width: 0.5px; background: var(--border); align-self: stretch; flex-shrink: 0; }
+  .dv-right { flex: 0 0 auto; padding: 26px 28px; }
+  .dv-seclabel { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .dv-seclabel .t {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .dv-seclabel .line { flex: 1; height: 0.5px; background: var(--hairline); }
+  .dv-sub { font-size: 11px; color: var(--text-3); margin: 0 0 2px; font-family: var(--font-mono); }
+  .dv-big-row { display: flex; align-items: baseline; gap: 10px; }
+  .dv-big { font-size: 26px; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+  .dv-big.accent { color: var(--accent); }
+  .dv-pago { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+  .dv-base { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); margin-top: 4px; opacity: 0.75; }
+  .dv-paid-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 14px 0 18px; }
+  .dv-paid-txt { font-size: 13px; font-weight: 600; color: var(--text); }
+  .dv-pct-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 10px; border-radius: 999px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    border: 0.5px solid color-mix(in oklab, var(--profit) 45%, transparent);
+    background: color-mix(in oklab, var(--profit) 12%, transparent);
+    color: var(--profit);
+  }
+  .dv-pct-pill .d { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .dv-waffle {
+    display: flex; flex-wrap: nowrap; gap: 5px; align-items: flex-start; padding-bottom: 2px;
+  }
+  .dv-waffle .col { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 22px; }
+  .dv-waffle .cell {
+    width: 22px; height: 22px; border-radius: 4px;
+    transition: transform 0.15s, filter 0.15s;
+    cursor: pointer;
+  }
+  .dv-waffle .cell:hover { transform: scale(1.08); filter: brightness(1.1); }
+  .dv-waffle .m {
+    font-family: var(--font-mono); font-size: 8px;
+    color: var(--text-3); opacity: 0.7;
+    transform: rotate(-45deg); transform-origin: top center;
+    height: 14px; white-space: nowrap; margin-top: 4px;
+  }
+  .dv-legend-title {
+    margin-top: 14px;
+    font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-3); opacity: 0.8;
+    margin-bottom: 8px;
+  }
+  .dv-legend-grid {
+    display: grid; grid-template-columns: auto auto; gap: 4px 22px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-2);
+    width: -moz-fit-content;
+    width: fit-content;
+  }
+  .dv-legend-grid .lg { display: inline-flex; align-items: center; gap: 7px; }
+  .dv-legend-grid .sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  .dv-dy-row { display: flex; align-items: baseline; gap: 18px; margin-top: 6px; }
+  .dv-dy-col .lbl { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); margin-bottom: 2px; }
+  .dv-dy-col .val { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .dv-dy-col .val.accent { color: var(--accent); }
+  .dv-dy-divider { width: 0.5px; height: 36px; background: var(--border); align-self: center; }
+  .dv-dy-hint {
+    font-size: 10px; color: var(--text-3); font-family: var(--font-mono);
+    margin-top: 8px; opacity: 0.8;
+  }
+  .dv-bench-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px;
+    padding: 3px 10px; border-radius: 999px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    border: 0.5px solid color-mix(in oklab, var(--profit) 45%, transparent);
+    background: color-mix(in oklab, var(--profit) 10%, transparent);
+    color: var(--profit);
+  }
+  @media (max-width: 820px) {
+    .dv-card { flex-direction: column; }
+    .dv-divider { width: 100%; height: 0.5px; }
+  }
+
+  /* Legacy waffle (kept unused) */
+  .waffle {
+    display: flex; gap: 4px; margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .waffle .cell {
+    width: 18px; height: 18px; border-radius: 3px;
+    background: var(--profit);
+    position: relative;
+  }
+  .waffle .cell.same { background: var(--info-blue); }
+  .waffle .cell.up   { background: var(--profit); }
+  .waffle .cell.down { background: var(--amber); }
+  .waffle .cell.miss { background: var(--loss); opacity: 0.6; }
+  .waffle-legend {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+    margin-top: 12px;
+  }
+  .waffle-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+  .waffle-legend .lg .sq { width: 9px; height: 9px; border-radius: 2px; }
+
+  /* Philosophy list (4 items as 2x2 grid) */
+  .diff-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 36px 48px;
+  }
+  @media (max-width: 820px) {
+    .diff-list { grid-template-columns: 1fr; gap: 24px; }
+  }
+  .diff-item { display: flex; gap: 18px; align-items: flex-start; }
+  .diff-num {
+    flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%;
+    border: 0.5px solid var(--hairline);
+    background: var(--bg-2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 11px; color: var(--accent);
+    font-weight: 600;
+  }
+  .diff-body h4 {
+    font-family: var(--font-sans); font-size: 17px; font-weight: 600;
+    margin: 4px 0 8px; letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .diff-body p {
+    font-size: 14px; line-height: 1.6; color: var(--text-2);
+    margin: 0; max-width: 420px;
+  }
+  .diff-body p b { color: var(--text); font-weight: 600; }
+
+  /* ============================================================
+     AI GESTOR — dedicated flagship section
+     ============================================================ */
+  .ai-section {
+    background: var(--bg-2);
+    border-top: 0.5px solid var(--hairline);
+    border-bottom: 0.5px solid var(--hairline);
+    position: relative;
+  }
+
+  .ai-layout {
+    display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px;
+    align-items: flex-start;
+  }
+  .ai-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 4px 10px 4px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent);
+    border: 0.5px solid var(--accent-line);
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .ai-eyebrow .ic {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 4px;
+    background: var(--accent); color: var(--bg-2);
+    font-size: 8px; font-weight: 700;
+    font-family: var(--font-mono); letter-spacing: 0;
+  }
+  .ai-copy h2 {
+    font-family: var(--font-sans); font-size: 40px; line-height: 1.08;
+    font-weight: 600; letter-spacing: -0.02em;
+    margin: 0 0 16px;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .ai-copy h2 .em { color: var(--accent); }
+  .ai-copy p {
+    font-size: 16px; line-height: 1.6; color: var(--text-2);
+    margin: 0 0 14px;
+    text-wrap: pretty;
+    max-width: 440px;
+  }
+  .ai-copy p b { color: var(--text); font-weight: 600; }
+  .ai-how {
+    margin-top: 28px;
+    display: flex; flex-direction: column; gap: 10px;
+    padding-top: 20px;
+    border-top: 0.5px solid var(--hairline);
+  }
+  .ai-how .step {
+    display: grid; grid-template-columns: 28px 1fr;
+    gap: 14px; align-items: baseline;
+    font-size: 14px; color: var(--text-2); line-height: 1.5;
+  }
+  .ai-how .step .n {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--accent); letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .ai-how .step b { color: var(--text); font-weight: 600; }
+
+  /* AI card — mirrors AIManagerCard.tsx */
+  .ai-card {
+    background: var(--bg);
+    border: 0.5px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    padding: 26px 28px 28px;
+    position: relative;
+  }
+  .ai-card-head {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 18px;
+  }
+  .ai-card-head .t {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600;
+  }
+  .ai-card-head .badge {
+    padding: 3px 8px; border-radius: 999px;
+    font-family: var(--font-mono); font-size: 9px;
+    font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--accent-soft); color: var(--accent);
+    border: 0.5px solid var(--accent-line);
+  }
+  .ai-card-head .meta {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-3); letter-spacing: 0.04em;
+    margin-left: auto;
+  }
+
+  .ai-summary {
+    font-size: 14.5px; line-height: 1.6;
+    color: var(--text);
+    margin: 0 0 22px;
+    text-wrap: pretty;
+  }
+
+  .ai-metric-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-bottom: 22px;
+  }
+  .ai-pill {
+    background: var(--bg-3); border: 0.5px solid var(--hairline);
+    border-radius: 8px;
+    padding: 9px 12px;
+  }
+  .ai-pill .k { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
+  .ai-pill .v { font-family: var(--font-mono); font-size: 13px; color: var(--text); margin-top: 3px; font-weight: 600; }
+
+  .ai-subsection { margin-top: 16px; }
+  .ai-subsection .lab {
+    font-family: var(--font-mono); font-size: 9px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-3); margin-bottom: 8px;
+  }
+  .ai-cris { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ai-cris .cri {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 999px;
+    border: 0.5px solid;
+  }
+  .ai-cris .cri.critical { color: var(--loss);  background: color-mix(in oklab, var(--loss) 10%, transparent);  border-color: color-mix(in oklab, var(--loss) 32%, transparent); }
+  .ai-cris .cri.warn    { color: var(--amber); background: color-mix(in oklab, var(--amber) 10%, transparent); border-color: color-mix(in oklab, var(--amber) 32%, transparent); }
+  .ai-cris .cri.ok      { color: var(--text-2); background: var(--bg-3); border-color: var(--hairline); }
+
+  .ai-foot {
+    margin-top: 20px; padding-top: 14px;
+    border-top: 0.5px solid var(--hairline);
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-3); letter-spacing: 0.06em;
+    display: flex; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* ============================================================
+     Principles (how we stay independent)
+     ============================================================ */
+  .principles-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    border: 0.5px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-2);
+  }
+  .principle {
+    padding: 26px 28px 26px;
+    border-right: 0.5px solid var(--hairline);
+    border-bottom: 0.5px solid var(--hairline);
+    background: var(--bg-2);
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .principle:nth-child(2n)   { border-right: none; }
+  .principle:nth-last-child(-n+2) { border-bottom: none; }
+  .principle .mark {
+    flex: 0 0 32px; font-family: var(--font-mono);
+    font-size: 11px; color: var(--accent);
+    letter-spacing: 0.16em; font-weight: 600;
+    padding-top: 4px;
+  }
+  .principle h4 {
+    font-family: var(--font-sans); font-size: 16px; font-weight: 600;
+    margin: 0 0 7px; color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .principle p {
+    font-size: 13.5px; line-height: 1.55; color: var(--text-2);
+    margin: 0; max-width: 360px;
+  }
+
+  /* ============================================================
+     CTA
+     ============================================================ */
+  .cta-strip {
+    padding: 88px 0;
+    background: var(--bg);
+    border-top: 0.5px solid var(--hairline);
+  }
+  .cta-inner {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 48px;
+    flex-wrap: wrap;
+  }
+  .cta-inner h2 {
+    font-family: var(--font-sans); font-size: 38px; font-weight: 600;
+    margin: 0; max-width: 620px; line-height: 1.08; letter-spacing: -0.02em;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .cta-inner h2 .em { color: var(--accent); }
+
+  /* ============================================================
+     Button system
+     ============================================================ */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-family: var(--font-sans); font-size: 14px; font-weight: 500;
+    border: 0.5px solid transparent; cursor: pointer;
+    transition: transform 0.15s, background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg-2);
+    font-weight: 600;
+  }
+  html[data-theme="dark"] .btn-primary {
+    color: var(--bg);
+  }
+  .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .btn-ghost {
+    background: transparent; color: var(--text);
+    border-color: var(--hairline);
+  }
+  .btn-ghost:hover { background: var(--bg-3); border-color: var(--border); }
+
+  /* ============================================================
+     Footer
+     ============================================================ */
+  footer {
+    background: var(--bg);
+    border-top: 0.5px solid var(--hairline);
+    padding: 56px 0 24px;
+  }
+  .footer-grid {
+    display: grid; grid-template-columns: 2.2fr 1fr; gap: 56px;
+    margin-bottom: 48px;
+  }
+  .footer-col h5 {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-3);
+    margin: 0 0 14px; font-weight: 500;
+  }
+  .footer-col a { display: block; font-size: 13px; color: var(--text-2); padding: 4px 0; }
+  .footer-col a:hover { color: var(--accent); }
+  .footer-about {
+    font-size: 13px; color: var(--text-2); line-height: 1.6;
+    max-width: 340px; margin: 14px 0 0;
+  }
+  .footer-bottom {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 20px; border-top: 0.5px solid var(--hairline);
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
+    letter-spacing: 0.04em;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .footer-bottom a:hover { color: var(--text-2); }
+  .disclaimer {
+    max-width: 1200px; margin: 0 auto;
+    padding: 20px 40px 8px;
+    font-family: var(--font-mono); font-size: 10.5px; line-height: 1.65;
+    color: var(--text-3); letter-spacing: 0.02em;
+    border-top: 0.5px dashed var(--hairline);
+  }
+
+  /* ============================================================
+     Tweaks panel
+     ============================================================ */
+  .tweaks {
+    position: fixed; right: 24px; bottom: 24px; z-index: 100;
+    background: var(--bg-2);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px 18px;
+    width: 268px;
+    box-shadow: 0 28px 60px -12px rgba(0,0,0,0.18);
+    display: none;
+    font-family: var(--font-sans);
+  }
+  .tweaks.open { display: block; }
+  .tweaks h5 {
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-3); margin: 0 0 14px; font-weight: 500;
+  }
+  .tweak-row { margin-bottom: 14px; }
+  .tweak-row:last-child { margin-bottom: 0; }
+  .tweak-row label {
+    display: block; font-size: 11px; color: var(--text-2);
+    margin-bottom: 7px; font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+  }
+  .swatches { display: flex; gap: 7px; }
+  .swatch {
+    width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+    border: 2px solid transparent;
+    position: relative;
+  }
+  .swatch.on { border-color: var(--text); }
+  .seg {
+    display: flex; background: var(--bg); border: 0.5px solid var(--hairline);
+    border-radius: 8px; padding: 3px;
+  }
+  .seg button {
+    flex: 1; background: transparent; border: none; color: var(--text-2);
+    font-family: var(--font-sans); font-size: 12px;
+    padding: 5px 8px; border-radius: 6px;
+  }
+  .seg button.on { background: var(--bg-2); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+
+  /* ============================================================
+     Density
+     ============================================================ */
+  body.density-compact section.section { padding: 64px 0; }
+  body.density-compact .hero { padding: 64px 0 52px; }
+  body.density-compact h1.hero-title { font-size: 48px; }
+  body.density-compact .section-head h2,
+  body.density-compact .ai-copy h2,
+  body.density-compact .cta-inner h2 { font-size: 34px; }
+
+  /* ============================================================
+     Hero variant: explainer (alt)
+     ============================================================ */
+  html[data-hero="explainer"] .hero-search-block { display: none; }
+  html[data-hero="explainer"] .hero-explainer-block { display: flex; }
+  html[data-hero="search"] .hero-explainer-block { display: none; }
+
+  .hero-explainer-block { display: none; gap: 12px; flex-wrap: wrap; }
+
+  /* ============================================================
+     Scroll-to-top button
+     ============================================================ */
+  .scroll-top {
+    position: fixed; right: 24px; bottom: 24px; z-index: 45;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--text);
+    border: none;
+    color: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.32), 0 2px 6px rgba(0,0,0,0.18);
+    opacity: 0; transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease, background 0.15s, color 0.15s;
+  }
+  .scroll-top.on {
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+  .scroll-top:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .scroll-top svg {
+    width: 18px; height: 18px;
+    stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    fill: none;
+  }
+
+  /* ============================================================
+     Responsive
+     ============================================================ */
+  @media (max-width: 1100px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    .context-grid, .ai-layout { grid-template-columns: 1fr; gap: 32px; }
+    .annotation { display: none; }
+    .explain-grid { grid-template-columns: 1fr; }
+    .explain { border-right: none; border-bottom: 0.5px solid var(--hairline); }
+    .explain:last-child { border-bottom: none; }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 720px) {
+    .container, .site-header-inner { padding-left: 20px; padding-right: 20px; }
+    h1.hero-title { font-size: 38px; }
+    .section-head h2, .ai-copy h2, .cta-inner h2 { font-size: 28px; }
+    .nav { display: none; }
+    .principles-grid { grid-template-columns: 1fr; }
+    .principle { border-right: none; border-bottom: 0.5px solid var(--hairline); }
+    .principle:last-child { border-bottom: none; }
+    .ai-metric-row { grid-template-columns: 1fr 1fr; }
+    .footer-grid { grid-template-columns: 1fr; }
+    .cta-inner { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+
+<style>
+  /* View switch: homepage markup vs React app root */
+  html[data-view="app"]  .fg-home-root { display: none !important; }
+  html[data-view="home"] #root          { display: none !important; }
+</style>
+  <script type="module" crossorigin src="/assets/index-ClMnKpsW.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Bz7wzG5K.css">
+</head>
+<body>
+<div class="fg-home-root">
+
+<!-- ========== HEADER ========== -->
+<header class="site-header">
+  <div class="site-header-inner">
+    <a href="/" class="brand" aria-label="FII Guia">
+      <img src="/logo_e_tipo_escuro.svg" alt="FII Guia" class="brand-logo brand-logo-dark">
+      <img src="/logo_e_tipo_claro.svg"  alt="FII Guia" class="brand-logo brand-logo-light">
+    </a>
+    <nav class="nav" aria-label="Navegação principal">
+      <a href="#what">O que é um FII</a>
+      <a href="#context">Dados com contexto</a>
+      <a href="#ai">Resumo do gestor</a>
+      <a href="#principles">Princípios</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Alternar tema">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="theme-icon">
+        <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+      <span id="theme-label">tema escuro</span>
+    </button>
+  </div>
+</header>
+
+<!-- ========== STICKY SEARCH BAND ========== -->
+<div class="search-band">
+  <div class="search-band-inner">
+    <div class="search-wrap" data-search-wrap="band">
+      <div class="hero-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input class="search-input-el" type="text" placeholder="Buscar fundo — ex: MXRF11" autocomplete="off" data-search="band" />
+      </div>
+      <div class="search-results" data-search-results="band">
+        <div class="sr-head">Resultados</div>
+        <div data-sr-list="band"></div>
+      </div>
+    </div>
+    <!--
+      DATA: GET /api/funds/popular
+      Response: Array<{ ticker, shortName }> (top 4-6 most-searched)
+    -->
+    <div class="search-band-hint">
+      <span class="lbl">populares:</span>
+      <button class="chip" data-ticker="MXRF11">MXRF11</button>
+      <button class="chip" data-ticker="KNCR11">KNCR11</button>
+      <button class="chip" data-ticker="HGLG11">HGLG11</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== HERO ========== -->
+<!--
+  ================================================================
+  DATA CONTRACT — HOME PAGE
+  Every hardcoded block below is annotated with the endpoint it
+  should be wired to. See HANDOFF.md for full schemas.
+  All responses should include a top-level `dataAsOf` ISO date.
+  ================================================================
+-->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span> gratuito · sem cadastro · sem afiliação · dados oficiais d-1</span>
+        <h1 class="hero-title">
+          Entenda <span class="em">antes</span> de investir<br/>em fundos imobiliários.
+        </h1>
+        <p class="hero-sub">
+          Pesquise qualquer FII da B3 e veja uma análise completa — <b>cada métrica traduzida, cada número com contexto</b>. Sem recomendações, sem ranking genérico, sem link de corretora.
+        </p>
+
+        <!-- Hero variant B: explainer-first -->
+        <div class="hero-explainer-block">
+          <a href="#what" class="btn btn-primary">
+            Começar do zero
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#ai" class="btn btn-ghost">Ver um fundo de exemplo</a>
+        </div>
+
+        <div class="hero-pitch-list">
+          <div class="item">
+            <span class="mk">✓</span>
+            <div>Toda métrica vem com <b>uma frase em português claro</b> — P/VP 1,03 vira "você paga R$ 1,03 por R$ 1 de patrimônio."</div>
+          </div>
+          <div class="item">
+            <span class="mk">✓</span>
+            <div>Comparações <b>dentro do segmento</b> — um fundo de papel não é medido contra um de tijolo.</div>
+          </div>
+          <div class="item">
+            <span class="mk">✓</span>
+            <div>Resumo do gestor <b>extraído por IA</b> do relatório gerencial mensal — o que mudou no caixa, no portfólio e nos riscos.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero preview — mini live fund card -->
+      <div class="hero-preview" aria-hidden="true">
+        <div class="hero-preview-chrome">
+          <span>fii-guia.com.br/mxrf11</span>
+          <span class="dots"><i></i><i></i><i></i></span>
+        </div>
+
+        <!--
+          DATA: GET /api/funds/:ticker/snapshot
+          Purpose: hero mini-card preview of a single fund
+          Fields used below:
+            ticker, shortName, segment, indexer       (header)
+            riskScore: 'low' | 'mid' | 'high'          (tag)
+            price: number                              (R$ 9,87)
+            priceAsOf: ISO date                        ("fechamento · DD/MM/YYYY")
+            pvp: number                                (1,03)
+            pvpDelta: number   (signed % vs 1.0)       ("prêmio de 3%")
+            pvpBand: 'discount' | 'fair' | 'premium'   (drives bar fill)
+            explanation: string (generated server-side, cached)
+          Example ticker wired on mount: MXRF11 (configurable)
+        -->
+        <div class="preview-card">
+          <div class="pc-head">
+            <div>
+              <div class="pc-ticker">MXRF11</div>
+              <div class="pc-name">fii maxi renda · papel · CDI+</div>
+            </div>
+            <span class="tag low"><span class="dot"></span>risco baixo</span>
+          </div>
+
+          <div class="pc-price-row">
+            <span class="pc-price tabular">R$ 9,87</span>
+            <span class="pc-date">fechamento · 16/04/2026</span>
+          </div>
+
+          <div class="pc-seclabel">
+            <span class="t">P/VP</span>
+            <span class="line"></span>
+          </div>
+
+          <div class="pvp-headline">
+            <span class="num tabular">1,03</span>
+            <span class="desc">prêmio de <b>3%</b> sobre o patrimônio líquido</span>
+          </div>
+          <div class="pvp-bar">
+            <div class="fill"></div>
+            <div class="tick"></div>
+          </div>
+          <div class="pvp-scale">
+            <span>0,70 desconto</span>
+            <span>1,00 justo</span>
+            <span>1,30 prêmio</span>
+          </div>
+
+          <div class="pc-callout">
+            <div class="ic">i</div>
+            <div class="txt">
+              <b>Em português:</b> você pagaria <em>R$ 1,03</em> por cada <em>R$ 1</em> de patrimônio. É um prêmio pequeno — dentro da média histórica do setor de papel.
+            </div>
+          </div>
+        </div>
+
+        <span class="annotation a1"><span class="line"></span>score de risco</span>
+        <span class="annotation a2"><span class="line"></span>escala visual</span>
+        <span class="annotation a3"><span class="line"></span>tradução em linguagem simples</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== O QUE É UM FII ========== -->
+<section class="section what-is" id="what">
+  <div class="container">
+    <div class="section-head">
+      <span class="kicker accent">começar do zero</span>
+      <h2>O que é um fundo imobiliário, em <span class="em">três ideias</span>.</h2>
+      <p>Antes de abrir qualquer cotação: o que você está comprando, como o dinheiro chega na sua conta, e o que pode dar errado.</p>
+    </div>
+
+    <div class="explain-grid">
+      <div class="explain">
+        <div class="num">01 — O que você compra</div>
+        <div class="ill">
+          <div class="ill-quotas">
+            <div class="qbuild">
+              <div class="q"></div><div class="q"></div><div class="q"></div><div class="q"></div>
+              <div class="q"></div><div class="q"></div><div class="q"></div><div class="q"></div>
+              <div class="q"></div><div class="q"></div><div class="q"></div><div class="q"></div>
+              <div class="q"></div><div class="q"></div><div class="q"></div><div class="q"></div>
+              <div class="q"></div><div class="q"></div><div class="q mine"></div><div class="q"></div>
+            </div>
+            <div class="qlabel">sua cota</div>
+          </div>
+        </div>
+        <h3>Um pedacinho de muitos imóveis.</h3>
+        <p>Um FII junta o dinheiro de milhares de investidores e compra <b>shoppings, galpões logísticos, lajes corporativas</b> — ou títulos atrelados a imóveis. Sua cota representa sua parte nesse bolo.</p>
+      </div>
+
+      <div class="explain">
+        <div class="num">02 — Como você ganha</div>
+        <div class="ill">
+          <div class="ill-pocket">
+            <div class="pocket">
+              <div class="coin">$</div>
+            </div>
+            <div class="plabel"><b>+R$</b><br/>todo mês</div>
+          </div>
+        </div>
+        <h3>Aluguel, todo mês, direto na conta.</h3>
+        <p>Por lei, os FIIs distribuem <b>no mínimo 95%</b> dos lucros aos cotistas. Na prática, você recebe um rendimento mensal — tipo aluguel — <b>isento de imposto de renda</b> para pessoa física.</p>
+      </div>
+
+      <div class="explain">
+        <div class="num">03 — O risco real</div>
+        <div class="ill">
+          <div class="ill-amp">
+            <div class="track">
+              <div class="t-lbl"><b>cota</b><span>varia</span></div>
+              <div class="t-range">
+                <div class="t-rail"></div>
+                <div class="t-band" style="left: 8%; right: 8%;"></div>
+                <div class="t-dot" style="left: 10%;"></div>
+                <div class="t-dot" style="left: 90%;"></div>
+                <div class="t-dot live" style="left: 58%;"></div>
+              </div>
+              <div class="t-amp">±18%</div>
+            </div>
+
+            <div class="track div">
+              <div class="t-lbl"><b>dividendo</b><span>firme</span></div>
+              <div class="t-range">
+                <div class="t-rail"></div>
+                <div class="t-band" style="left: 44%; right: 44%;"></div>
+                <div class="t-dot" style="left: 46%;"></div>
+                <div class="t-dot" style="left: 54%;"></div>
+                <div class="t-dot live" style="left: 50%;"></div>
+              </div>
+              <div class="t-amp">±2%</div>
+            </div>
+
+            <div class="foot">amplitude · últimos 12 meses</div>
+          </div>
+        </div>
+        <h3>A cota oscila. O rendimento também.</h3>
+        <p>Diferente da poupança, o <b>valor da cota sobe e desce</b> diariamente, e o rendimento pode variar (inquilinos saem, contratos mudam, crédito piora). Entender isso é o primeiro passo — e é pra isso que o Guia existe.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== DADOS COM CONTEXTO ========== -->
+<section class="section" id="context">
+  <div class="container">
+    <div class="section-head">
+      <span class="kicker accent">a diferença do fii guia</span>
+      <h2>Dados com <span class="em">contexto</span>. Não dados jogados na sua cara.</h2>
+      <p>Um número sozinho não decide nada. Toda métrica aqui vem com uma frase explicando o que significa, como comparar, e o que observar.</p>
+      <p class="sh-note"><span class="sh-note-dot"></span><span class="sh-note-body">Fonte: B3 e CVM · fechamento D-1 · atualizado diariamente antes das 9h.<br><b>Cotação ao vivo? Sua corretora já tem. Contexto? A gente.</b><br>O Guia é um hub de fatos pra decidir — não um ticker pra reagir.</span></p>
+    </div>
+
+    <div class="context-grid">
+      <div class="metric-demo">
+        <div class="metric-demo-head">
+          <span class="lbl">exemplo · visualização real</span>
+          <span class="tkr">MXRF11</span>
+        </div>
+        <div class="metric-demo-body">
+
+          <!--
+            DATA: GET /api/funds/:ticker/dividends?months=13
+            Purpose: 13-month dividend history card
+            Fields used below:
+              lastDividend: { amount, paidOn, baseDate }
+              paidMonths: number (0..13)                 ("pagou N de 13 meses")
+              paidPercent: number                        (100%)
+              history: Array<{
+                month: 'YYYY-MM',
+                label: 'MMM/YY',
+                amount: number,
+                vsPrev: 'up' | 'down' | 'flat' | 'none'   (drives cell color)
+              }>
+              dy: {
+                monthly: number     (%)
+                annualized: number  (%)
+                segmentMedian: number (%)
+                vsBenchmark: 'above' | 'below' | 'inline'
+              }
+          -->
+          <div class="dv-card">
+            <div class="dv-left">
+              <div class="dv-seclabel"><span class="t">Dividendos — últimos 13 meses</span><span class="line"></span></div>
+              <p class="dv-sub">último dividendo</p>
+              <div class="dv-big-row">
+                <span class="dv-big tabular">R$ 0,10</span>
+                <span class="dv-pago">pago em 14/out</span>
+              </div>
+              <p class="dv-base">data-base: 30/set</p>
+              <div class="dv-paid-row">
+                <span class="dv-paid-txt">pagou 13 de 13 meses</span>
+                <span class="dv-pct-pill"><span class="d"></span>100%</span>
+              </div>
+              <div class="dv-waffle">
+                <div class="col"><div class="cell" style="background: var(--info-blue);"></div><span class="m">out/24</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">nov/24</span></div>
+                <div class="col"><div class="cell" style="background: var(--amber);"></div><span class="m">dez/24</span></div>
+                <div class="col"><div class="cell" style="background: var(--info-blue);"></div><span class="m">jan/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">fev/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">mar/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--info-blue);"></div><span class="m">abr/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--amber);"></div><span class="m">mai/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--info-blue);"></div><span class="m">jun/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">jul/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--info-blue);"></div><span class="m">ago/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">set/25</span></div>
+                <div class="col"><div class="cell" style="background: var(--profit);"></div><span class="m">out/25</span></div>
+              </div>
+              <div class="dv-legend-title">Legenda de cores</div>
+              <div class="dv-legend-grid">
+                <span class="lg"><span class="sq" style="background: var(--info-blue);"></span>igual ao mês anterior</span>
+                <span class="lg"><span class="sq" style="background: var(--profit);"></span>maior que o mês anterior</span>
+                <span class="lg"><span class="sq" style="background: var(--amber);"></span>menor que o mês anterior</span>
+                <span class="lg"><span class="sq" style="background: var(--loss); opacity: 0.6;"></span>sem pagamento no mês</span>
+              </div>
+            </div>
+
+            <div class="dv-divider"></div>
+
+            <div class="dv-right">
+              <div class="dv-seclabel"><span class="t">Dividend Yield</span></div>
+              <div class="dv-dy-row">
+                <div class="dv-dy-col">
+                  <div class="lbl">mensal</div>
+                  <div class="val tabular">1,01%</div>
+                </div>
+                <div class="dv-dy-divider"></div>
+                <div class="dv-dy-col">
+                  <div class="lbl">anualizado</div>
+                  <div class="val accent tabular">12,10%</div>
+                </div>
+              </div>
+              <p class="dv-dy-hint">soma dos últimos 12 dividendos / preço atual</p>
+              <p class="dv-dy-hint">mediana do segmento papel: 10,80%/ano</p>
+              <div class="dv-bench-badge">acima do benchmark</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="diff-list">
+        <div class="diff-item">
+          <div class="diff-num">01</div>
+          <div class="diff-body">
+            <h4>Cada métrica, uma frase em português claro</h4>
+            <p>Nada de jargão solto. "P/VP 1,03" vira "você paga R$ 1,03 por R$ 1 de patrimônio — um prêmio pequeno."</p>
+          </div>
+        </div>
+        <div class="diff-item">
+          <div class="diff-num">02</div>
+          <div class="diff-body">
+            <h4>Comparação com a categoria certa</h4>
+            <p>Um FII de papel e um de tijolo se comportam de jeitos diferentes. Benchmarks são sempre calculados <b>dentro do segmento</b> — nunca misturando bananas e maçãs.</p>
+          </div>
+        </div>
+        <div class="diff-item">
+          <div class="diff-num">03</div>
+          <div class="diff-body">
+            <h4>Gross-up feito de verdade</h4>
+            <p>O simulador converte o DY líquido em equivalente CDI tributado, mostrando a alíquota usada e por quê. Sem marketing de "500% do CDI".</p>
+          </div>
+        </div>
+        <div class="diff-item">
+          <div class="diff-num">04</div>
+          <div class="diff-body">
+            <h4>Sem recomendações</h4>
+            <p>Não dizemos "compre" ou "venda". Mostramos os sinais, explicamos o que observar, e deixamos a decisão com você.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== AI GESTOR ========== -->
+<section class="section ai-section" id="ai">
+  <div class="container">
+    <div class="ai-layout">
+      <div class="ai-copy">
+        <span class="ai-eyebrow"><span class="ic">AI</span> recurso em destaque</span>
+        <h2>Todo mês, a IA lê o relatório do gestor — e te conta o que <span class="em">mudou</span>.</h2>
+        <p>
+          Relatórios gerenciais de FIIs são longos, em PDF, e escritos em linguagem de gestora. O Guia usa Claude Sonnet pra extrair <b>o que importa</b>: resultado por cota, distribuição, reserva de caixa, CRIs em observação, mudanças no portfólio.
+        </p>
+        <p>
+          Tudo <b>verificável nos valores brutos</b> do próprio relatório — você vê o resumo e clica pra conferir.
+        </p>
+
+        <div class="ai-how">
+          <div class="step"><span class="n">01</span><span><b>Coleta</b> — O Guia busca o PDF do relatório mensal direto da B3 no dia em que é publicado.</span></div>
+          <div class="step"><span class="n">02</span><span><b>Extração</b> — Claude Sonnet lê e estrutura os números, seguindo um schema auditado pra cada tipo de fundo.</span></div>
+          <div class="step"><span class="n">03</span><span><b>Tradução</b> — Um resumo de 2–4 frases, em português claro, sobre o que mudou.</span></div>
+        </div>
+      </div>
+
+      <!--
+        DATA: GET /api/funds/:ticker/ai-summary?month=YYYY-MM
+        Purpose: AI-generated monthly manager-report summary
+        Fields used below:
+          refMonth: 'YYYY-MM'
+          tone: 'positive' | 'neutral' | 'negative'
+          summary: string (2-4 sentences, pt-BR, Claude-generated)
+          metrics: {
+            resultPerShare, distributionPerShare, cashReserve,
+            avgSpreadBps, avgLtv, activeCris
+          }
+          crisWatchlist: Array<{ name, trend: 'up'|'down'|'flat', severity: 'ok'|'warn'|'critical' }>
+          portfolioChanges: string (2-3 sentences)
+          processedAt: ISO datetime
+          model: string  (e.g. 'claude-sonnet-4-5')
+          sourceReportUrl: string (B3 PDF)
+        Caching: compute once per report ingestion, NOT per pageview.
+      -->
+      <!-- AI card (preview of the real AIManagerCard) -->
+      <div class="ai-card">
+        <div class="ai-card-head">
+          <span class="t">Resumo do gestor</span>
+          <span class="badge">AI</span>
+          <span class="tag low" style="letter-spacing:0.04em;"><span class="dot"></span>tom: neutro</span>
+          <span class="meta">ref. mar/2026</span>
+        </div>
+
+        <p class="ai-summary">
+          Mês de resultado <b>estável</b>, com distribuição mantida em R$ 0,11/cota. A reserva monetária caiu marginalmente (R$ 78,4M → R$ 76,1M) devido à amortização parcial do CRI Setin. O spread médio de crédito segue em 2,4% sobre o CDI — dentro da faixa histórica do fundo.
+        </p>
+
+        <div class="ai-metric-row">
+          <div class="ai-pill"><div class="k">resultado/cota</div><div class="v tabular">R$ 0,112</div></div>
+          <div class="ai-pill"><div class="k">distribuição/cota</div><div class="v tabular">R$ 0,110</div></div>
+          <div class="ai-pill"><div class="k">reserva</div><div class="v tabular">R$ 76,1M</div></div>
+          <div class="ai-pill"><div class="k">spread médio</div><div class="v tabular">240 bps</div></div>
+          <div class="ai-pill"><div class="k">LTV médio</div><div class="v tabular">62,4%</div></div>
+          <div class="ai-pill"><div class="k">CRIs ativos</div><div class="v tabular">87</div></div>
+        </div>
+
+        <div class="ai-subsection">
+          <div class="lab">CRIs em observação</div>
+          <div class="ai-cris">
+            <span class="cri warn">↓ CRI Setin</span>
+            <span class="cri warn">→ CRI AlphaPark</span>
+            <span class="cri ok">✓ CRI Helbor</span>
+            <span class="cri critical">↓ CRI Gafisa</span>
+            <span class="cri ok">↑ CRI Tegra</span>
+          </div>
+        </div>
+
+        <div class="ai-subsection">
+          <div class="lab">Mudanças no portfólio</div>
+          <p style="font-size: 13px; line-height: 1.55; color: var(--text-2); margin: 0;">
+            Aquisição de R$ 12M em CRI MRV (CDI+3,2%, LTV 58%). Alongamento do prazo médio de 4,8 → 5,1 anos.
+          </p>
+        </div>
+
+        <div class="ai-foot">
+          <span>processado em 14/abr 03:12 · claude-sonnet-4-5</span>
+          <span style="color: var(--accent);">ver relatório completo →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== PRINCÍPIOS ========== -->
+<section class="section" id="principles">
+  <div class="container">
+    <div class="section-head">
+      <span class="kicker accent">como nos mantemos isentos</span>
+      <h2>Quatro <span class="em">princípios</span> que não negociamos.</h2>
+      <p>Você merece saber como as análises são construídas — e, principalmente, o que <b>nunca</b> entra nelas.</p>
+    </div>
+
+    <div class="principles-grid">
+      <div class="principle">
+        <div class="mark">01</div>
+        <div>
+          <h4>Sem recomendação de compra</h4>
+          <p>Não existe "esse FII é bom". Existe "esse FII se encaixa se você procura X, Y, Z". A decisão é sempre sua.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="mark">02</div>
+        <div>
+          <h4>Fontes públicas e auditáveis</h4>
+          <p>Todos os dados vêm da B3, CVM e relatórios gerenciais dos próprios fundos. Cada número tem a data de referência visível.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="mark">03</div>
+        <div>
+          <h4>Sem afiliação com gestoras</h4>
+          <p>Não recebemos pagamento de gestoras, corretoras ou plataformas. Não há FII em destaque comercial ou lista paga.</p>
+        </div>
+      </div>
+      <div class="principle">
+        <div class="mark">04</div>
+        <div>
+          <h4>Dados com contexto</h4>
+          <p>Toda métrica vem com uma frase em português claro explicando o que significa e como comparar. Número sozinho não decide nada.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== CTA ========== -->
+<!-- ========== FOOTER ========== -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <a href="/" class="brand" aria-label="FII Guia">
+          <img src="/logo_e_tipo_escuro.svg" alt="FII Guia" class="brand-logo brand-logo-dark">
+          <img src="/logo_e_tipo_claro.svg"  alt="FII Guia" class="brand-logo brand-logo-light">
+        </a>
+        <p class="footer-about">
+          Um guia gratuito e independente pra quem quer entender fundos imobiliários antes de investir. Dados com contexto, linguagem clara, zero viés.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h5>Sobre</h5>
+        <a href="#principles">Princípios</a>
+        <a href="#">Quem fez</a>
+        <a href="#">Contato</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2026 FII Guia · feito no Brasil</div>
+      <div style="display: flex; gap: 20px;">
+        <a href="#">Privacidade</a>
+        <a href="#">Termos</a>
+      </div>
+    </div>
+  </div>
+  <div class="disclaimer">
+    <b>AVISO:</b> o FII Guia tem caráter exclusivamente educacional e informativo. Nenhum conteúdo aqui constitui recomendação de investimento, oferta de valores mobiliários ou consultoria. Rentabilidade passada não é garantia de rentabilidade futura. Antes de investir, consulte um profissional certificado e leia os documentos oficiais de cada fundo na CVM.
+  </div>
+</footer>
+
+</div>
+
+<!-- React mount point for /#/fundo/:ticker -->
+<div id="root"></div>
+
+<script>
+  // ============ Search: navigate to the fund page on Enter ============
+  function goToFund(ticker) {
+    const t = (ticker || '').trim().toUpperCase();
+    if (!t) return;
+    window.location.href = '/#/fundo/' + encodeURIComponent(t);
+  }
+
+  document.querySelectorAll('.search-input-el').forEach(input => {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        goToFund(input.value);
+      }
+    });
+  });
+
+  // Popular ticker chips → direct navigation
+  document.querySelectorAll('.chip[data-ticker]').forEach(b => {
+    b.addEventListener('click', () => goToFund(b.dataset.ticker));
+  });
+
+  // ============ Smooth scroll for anchor links ============
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const id = a.getAttribute('href');
+      if (id.length <= 1) return;
+      const el = document.querySelector(id);
+      if (el) {
+        e.preventDefault();
+        window.scrollTo({ top: el.offsetTop - 72, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // ============ Theme toggle ============
+  const themeBtn   = document.getElementById('theme-toggle');
+  const themeLabel = document.getElementById('theme-label');
+  const themeIcon  = document.getElementById('theme-icon');
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+    if (theme === 'dark') {
+      themeLabel.textContent = 'tema claro';
+      themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    } else {
+      themeLabel.textContent = 'tema escuro';
+      themeIcon.innerHTML = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+    }
+  }
+  // Sync label on load
+  applyTheme(document.documentElement.dataset.theme || 'dark');
+
+  themeBtn.addEventListener('click', () => {
+    const cur  = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('fg-theme', next);
+    applyTheme(next);
+  });
+  </script>
+
+<!-- ========== SCROLL TO TOP ========== -->
+<button class="scroll-top" id="scroll-top" aria-label="voltar ao topo">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 15l6-6 6 6"/>
+  </svg>
+</button>
+<script>
+  (function(){
+    const btn = document.getElementById('scroll-top');
+    if (!btn) return;
+    const onScroll = () => {
+      btn.classList.toggle('on', window.scrollY > 400);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    btn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  })();
+</script>
+
+</body>
 </html>
