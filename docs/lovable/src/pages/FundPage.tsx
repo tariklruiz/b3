@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Sun, Moon } from 'lucide-react'
 import { SearchBar } from '@/components/SearchBar'
 import { FundHeader } from '@/components/FundHeader'
@@ -14,7 +15,9 @@ import logoDark from '@/assets/logo-dark.svg'
 
 const API_BASE = 'https://fii-prices.up.railway.app'
 
-export default function Index() {
+export default function FundPage() {
+  const { ticker: tickerParam } = useParams<{ ticker: string }>()
+  const navigate = useNavigate()
   const [fund, setFund] = useState<FundData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -47,16 +50,14 @@ export default function Index() {
 
       const preco    = await precoRes.json()
       const div      = await divRes.json()
-      const informe  = informeRes.ok  ? await informeRes.json()  : null
+      const informe   = informeRes.ok ? await informeRes.json()  : null
       const benchData = benchRes.ok   ? await benchRes.json()    : null
-      const cdiData  = cdiRes.ok      ? await cdiRes.json()      : null
+      const cdiData   = cdiRes.ok     ? await cdiRes.json()      : null
       const gestorData = gestorRes.ok ? await gestorRes.json()   : null
 
       const f = buildFundData(ticker, preco, div, informe, benchData, cdiData, gestorData)
       setFund(f)
-
       document.title = `${ticker} — FII Guia`
-      window.location.hash = `?ticker=${ticker}`
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -64,24 +65,29 @@ export default function Index() {
     }
   }, [])
 
+  // Navigate to a new fund's URL; useEffect below handles the actual fetch.
+  const onSearch = useCallback((ticker: string) => {
+    const t = ticker.trim().toUpperCase()
+    if (!t) return
+    if (t !== tickerParam) navigate(`/fundo/${t}`)
+  }, [navigate, tickerParam])
+
+  // Load whenever the URL ticker changes.
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '')
-    const params = new URLSearchParams(hash)
-    const initialTicker = params.get('ticker')
-    if (initialTicker) loadFund(initialTicker)
-  }, [loadFund])
+    if (tickerParam) loadFund(tickerParam)
+  }, [tickerParam, loadFund])
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-300">
       {/* Top Bar */}
       <header className="bg-card/90 backdrop-blur-xl border-b border-border px-5 sm:px-7 h-[56px] flex items-center justify-between sticky top-0 z-50 transition-colors">
-        <a href="?" className="flex items-center group">
+        <Link to="/" className="flex items-center group" aria-label="Ir para a página inicial">
           <img
             src={isDark ? logoDark : logoLight}
             alt="FII Guia"
             className="h-9 w-auto block"
           />
-        </a>
+        </Link>
         <button
           onClick={toggle}
           aria-label={isDark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
@@ -93,7 +99,7 @@ export default function Index() {
       </header>
 
       {/* Search */}
-      <SearchBar onSearch={loadFund} initialValue={fund?.ticker || ''} />
+      <SearchBar onSearch={onSearch} initialValue={tickerParam || ''} />
 
       {/* Error */}
       {error && (
