@@ -318,7 +318,7 @@
 /* ============================================================
    Sections
    ============================================================ */
-.fg-home .section { padding: var(--fg-row-pad) 0; border-top: 0.5px solid var(--fg-hairline); }
+.fg-home .section { padding: 96px 0; position: relative; }
 @media (max-width: 720px) { .fg-home .section { padding: 60px 0; } }
 
 .fg-home .section-head { max-width: 720px; margin: 0 0 52px; }
