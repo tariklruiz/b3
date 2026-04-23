@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Sun, Moon } from 'lucide-react'
 import { SearchBar } from '@/components/SearchBar'
 import { FundHeader } from '@/components/FundHeader'
@@ -22,6 +22,12 @@ export default function FundPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const { isDark, toggle } = useTheme()
+
+  // Toggle html[data-view] so the static homepage markup hides while FundPage is mounted
+  useEffect(() => {
+    document.documentElement.dataset.view = 'app'
+    return () => { document.documentElement.dataset.view = 'home' }
+  }, [])
 
   const loadFund = useCallback(async (ticker: string) => {
     ticker = ticker.trim().toUpperCase()
@@ -81,13 +87,13 @@ export default function FundPage() {
     <div className="min-h-screen bg-background transition-colors duration-300">
       {/* Top Bar */}
       <header className="bg-card/90 backdrop-blur-xl border-b border-border px-5 sm:px-7 h-[56px] flex items-center justify-between sticky top-0 z-50 transition-colors">
-        <Link to="/" className="flex items-center group" aria-label="Ir para a página inicial">
+        <a href="/" className="flex items-center group" aria-label="Ir para a página inicial">
           <img
             src={isDark ? logoDark : logoLight}
             alt="FII Guia"
             className="h-9 w-auto block"
           />
-        </Link>
+        </a>
         <button
           onClick={toggle}
           aria-label={isDark ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
