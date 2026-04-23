@@ -189,7 +189,8 @@ export default function Home() {
               <div className="num">02 — Como você ganha</div>
               <div className="ill">
                 <div className="ill-pocket">
-                  <div className="pocket"><div className="coin">$</div></div>
+                  <div className="pocket"></div>
+                  <div className="coin">$</div>
                   <div className="plabel"><b>+R$</b><br />todo mês</div>
                 </div>
               </div>
