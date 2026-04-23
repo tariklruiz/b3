@@ -92,31 +92,6 @@ export default function Home() {
                 Pesquise qualquer FII da B3 e veja uma análise completa — <b>cada métrica traduzida, cada número com contexto</b>. Sem recomendações, sem ranking genérico, sem link de corretora.
               </p>
 
-              <div className="hero-search-block">
-                <div className="hero-search">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="m21 21-4.35-4.35" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Buscar fundo — ex: MXRF11"
-                    autoComplete="off"
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                    onKeyDown={onKeyDown}
-                    aria-label="Buscar fundo imobiliário por ticker"
-                  />
-                  <span className="kbd">Enter ↵</span>
-                </div>
-                <div className="search-hint">
-                  <span className="lbl">populares:</span>
-                  {POPULAR.map(t => (
-                    <button key={t} className="chip" onClick={() => goToFund(t)}>{t}</button>
-                  ))}
-                </div>
-              </div>
-
               <div className="hero-pitch-list">
                 <div className="item">
                   <span className="mk">✓</span>
