@@ -71,12 +71,14 @@ export function HealthCard({ fund }: { fund: FundData }) {
   // -- Fallback state when no health data --
   if (!h) {
     return (
-      <div className="bg-card border border-border/60 rounded-[10px] p-5 sm:p-6">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-[15px] font-medium text-foreground">saúde do fundo</h3>
+      <div className="relative bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm transition-colors overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary via-accent to-primary" />
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-[10px] text-primary uppercase tracking-[0.15em] font-semibold">Saúde do fundo</span>
           <InfoTooltip label="Mais informações sobre saúde do fundo" title="saúde do fundo">
             soma dos pontos de alavancagem e cobertura de dividendos (0 a 2 pontos cada). 4 pts = saudável · 2-3 pts = atenção · 0-1 pts = risco. não é recomendação de investimento.
           </InfoTooltip>
+          <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
         </div>
         <p className="text-[12px] text-muted-foreground">índice indisponível para este fundo</p>
       </div>
@@ -95,33 +97,36 @@ export function HealthCard({ fund }: { fund: FundData }) {
   const covValueUnavailable = cob.value == null
 
   return (
-    <div className="bg-card border border-border/60 rounded-[10px] p-5 sm:p-6">
-      {/* 1. HEADER ROW */}
-      <div className="flex items-start justify-between gap-3 mb-5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-medium text-foreground">saúde do fundo</h3>
-            <InfoTooltip label="Mais informações sobre saúde do fundo" title="saúde do fundo">
-              soma dos pontos de alavancagem e cobertura de dividendos (0 a 2 pontos cada). 4 pts = saudável · 2-3 pts = atenção · 0-1 pts = risco. não é recomendação de investimento.
-            </InfoTooltip>
-          </div>
-          <p className="text-[11px] text-muted-foreground/80 font-mono mt-0.5">
-            índice FII Guia{compet && ` · competência ${compet}`}
-          </p>
-        </div>
+    <div className="relative bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm transition-colors overflow-hidden">
+      {/* Top accent line — matches other cards */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-primary via-accent to-primary" />
 
-        <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border ${tier.pillBg} ${tier.pillBorder} flex-shrink-0`}>
+      {/* HEADER ROW — title · badge · (i) · gradient underline */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-[10px] text-primary uppercase tracking-[0.15em] font-semibold">Saúde do fundo</span>
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${tier.pillBg} ${tier.pillBorder}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${tier.dot}`} aria-hidden="true" />
-          <span className={`text-[12px] font-medium ${tier.pillText}`}>
+          <span className={`text-[11px] font-medium ${tier.pillText}`}>
             <span className="sr-only">{h.tier_label}, </span>
             {h.tier_label}
           </span>
-          <span className="text-[11px] text-muted-foreground font-mono tabular-nums">
+          <span className="text-[10px] text-muted-foreground font-mono tabular-nums">
             <span className="sr-only">{h.score} de {h.max_score} pontos</span>
-            <span aria-hidden="true">{h.score} / {h.max_score}</span>
+            <span aria-hidden="true">{h.score}/{h.max_score}</span>
           </span>
-        </div>
+        </span>
+        <InfoTooltip label="Mais informações sobre saúde do fundo" title="saúde do fundo">
+          soma dos pontos de alavancagem e cobertura de dividendos (0 a 2 pontos cada). 4 pts = saudável · 2-3 pts = atenção · 0-1 pts = risco. não é recomendação de investimento.
+        </InfoTooltip>
+        <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent min-w-[24px]" />
       </div>
+
+      {/* Competência subtext under the header */}
+      {compet && (
+        <p className="text-[11px] text-muted-foreground/80 font-mono -mt-1 mb-4">
+          índice FII Guia · competência {compet}
+        </p>
+      )}
 
       {/* 2. METRIC CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 mb-5">
