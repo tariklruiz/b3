@@ -466,9 +466,10 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
 @limiter.limit("30/minute")
 def get_fundo_informe(request: Request, ticker: str = Query(...)):
     """
-    Returns the latest informe mensal for a given ticker. Full 27-field dump:
-    identity, classification, administrator, dates, investors, balance sheet,
-    quotas, returns, portfolio composition, distributable income.
+    Returns the latest informe mensal for a given ticker. Full 27-field dump plus
+    a computed `health` object with alavancagem + cobertura de dividendos scoring
+    (0-4 total) and composition percentages. `health` is None if the fund lacks
+    enough data (e.g., new fund without dividend history).
     """
     t = validate_ticker(ticker)
 
@@ -525,6 +526,64 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
     if not row:
         raise HTTPException(status_code=404, detail=f"Informe mensal não encontrado para {t}")
 
+    # Pull computed health metrics from the view (cheap single-row lookup)
+    health_row = query_one(
+        """
+        SELECT alavancagem_ratio, alav_pts, alav_tier, alav_label,
+               cobertura_meses, cobert_pts, cobert_tier, cobert_label, cobertura_method,
+               score, max_score, tier,
+               narrative_full, narrative_partial,
+               classificacao_declarada,
+               cri_cra_pct, titulos_privados_pct,
+               fundos_renda_fixa_pct, imoveis_renda_pct, outros_pct
+        FROM fund_health_score
+        WHERE cnpj_fundo = %s
+        """,
+        (cnpj,),
+    )
+
+    # Build the nested health object. None if we have no usable data at all.
+    health = None
+    if health_row and (health_row["alav_pts"] is not None or health_row["cobert_pts"] is not None):
+        narrative = health_row["narrative_full"] or health_row["narrative_partial"]
+
+        health = {
+            "score": health_row["score"],
+            "max_score": health_row["max_score"],
+            "tier": health_row["tier"],
+            "tier_label": {
+                "saudavel": "Saudável",
+                "atencao": "Atenção",
+                "risco": "Risco",
+            }.get(health_row["tier"]),
+            "narrative": narrative,
+            "components": {
+                "alavancagem": None if health_row["alav_pts"] is None else {
+                    "value": f(health_row["alavancagem_ratio"]),
+                    "points": health_row["alav_pts"],
+                    "tier": health_row["alav_tier"],
+                    "label": health_row["alav_label"],
+                },
+                "cobertura_dividendos": None if health_row["cobert_pts"] is None else {
+                    "value": f(health_row["cobertura_meses"]),
+                    "points": health_row["cobert_pts"],
+                    "tier": health_row["cobert_tier"],
+                    "label": health_row["cobert_label"],
+                    "method": health_row["cobertura_method"],
+                },
+            },
+            "composicao": {
+                "classificacao_declarada": health_row["classificacao_declarada"],
+                "breakdown": {
+                    "cri_cra_pct":           f(health_row["cri_cra_pct"]),
+                    "titulos_privados_pct":  f(health_row["titulos_privados_pct"]),
+                    "fundos_renda_fixa_pct": f(health_row["fundos_renda_fixa_pct"]),
+                    "imoveis_renda_pct":     f(health_row["imoveis_renda_pct"]),
+                    "outros_pct":            f(health_row["outros_pct"]),
+                },
+            },
+        }
+
     return {
         # Identity
         "ticker": t,
@@ -565,7 +624,7 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         "dy_mes": f(row["dividend_yield_mes"]),
         "rent_mensal": f(row["rent_patr_mensal"]),
 
-        # Portfolio composition
+        # Portfolio composition (raw values in BRL)
         "total_investido": f(row["total_investido"]),
         "imoveis_renda": f(row["imoveis_renda"]),
         "titulos_privados": f(row["titulos_privados"]),
@@ -574,6 +633,9 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
 
         # Distributable income
         "rendimentos_distribuir": f(row["rendimentos_distribuir"]),
+
+        # Computed health score (nested object, None if insufficient data)
+        "health": health,
     }
 
 
