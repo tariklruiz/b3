@@ -146,11 +146,12 @@ scored AS (
         END AS alav_label,
 
         -- cobertura scoring: >=2 = 2, 1-2 = 1, <1 = 0
-        -- pass-through detected: if avg payout ratio is ~0, it's not a risk signal
+        -- If cobertura_meses can't be computed (missing dividend history or
+        -- zero num_cotas), return NULL — we can't judge what we can't measure.
         CASE
             WHEN c.cobertura_method = 'no_data' THEN NULL
             WHEN c.rendimentos_distribuir IS NULL THEN NULL
-            WHEN c.cobertura_meses IS NULL THEN 0
+            WHEN c.cobertura_meses IS NULL THEN NULL
             WHEN c.cobertura_meses >= 2.0 THEN 2
             WHEN c.cobertura_meses >= 1.0 THEN 1
             ELSE 0
@@ -159,7 +160,7 @@ scored AS (
         CASE
             WHEN c.cobertura_method = 'no_data' THEN NULL
             WHEN c.rendimentos_distribuir IS NULL THEN NULL
-            WHEN c.cobertura_meses IS NULL THEN 'risco'
+            WHEN c.cobertura_meses IS NULL THEN NULL
             WHEN c.cobertura_meses >= 2.0 THEN 'saudavel'
             WHEN c.cobertura_meses >= 1.0 THEN 'atencao'
             ELSE 'risco'
@@ -168,7 +169,7 @@ scored AS (
         CASE
             WHEN c.cobertura_method = 'no_data' THEN NULL
             WHEN c.rendimentos_distribuir IS NULL THEN NULL
-            WHEN c.cobertura_meses IS NULL THEN 'cobertura apertada'
+            WHEN c.cobertura_meses IS NULL THEN NULL
             WHEN c.cobertura_meses >= 2.0 THEN 'cobertura confortável'
             WHEN c.cobertura_meses >= 1.0 THEN 'cobertura moderada'
             ELSE 'cobertura apertada'
@@ -193,11 +194,12 @@ SELECT
     s.cobert_label,
     s.cobertura_method,
 
-    -- Composition as percentages of ativo_total
-    NULLIF(s.cri_cra / NULLIF(s.ativo_total, 0), 0) AS cri_cra_pct,
-    NULLIF(s.titulos_privados / NULLIF(s.ativo_total, 0), 0) AS titulos_privados_pct,
-    NULLIF(s.fundos_renda_fixa / NULLIF(s.ativo_total, 0), 0) AS fundos_renda_fixa_pct,
-    NULLIF(s.imoveis_renda / NULLIF(s.ativo_total, 0), 0) AS imoveis_renda_pct,
+    -- Composition as fractions of ativo_total. NULL only when source value is
+    -- NULL (missing data); 0 means the fund genuinely has zero in that category.
+    s.cri_cra          / NULLIF(s.ativo_total, 0) AS cri_cra_pct,
+    s.titulos_privados / NULLIF(s.ativo_total, 0) AS titulos_privados_pct,
+    s.fundos_renda_fixa / NULLIF(s.ativo_total, 0) AS fundos_renda_fixa_pct,
+    s.imoveis_renda    / NULLIF(s.ativo_total, 0) AS imoveis_renda_pct,
     -- "outros" = whatever's left; clamped to 0 if the named categories sum to > ativo
     GREATEST(
         0,
