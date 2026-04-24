@@ -82,6 +82,48 @@ export interface GestorData {
   processado_em: string | null
 }
 
+export type HealthTier = 'saudavel' | 'atencao' | 'risco'
+export type CoberturaMethod = '12m_avg' | '3m_fallback' | 'pass_through'
+
+export interface HealthComponentAlavancagem {
+  value: number | null
+  points: number
+  tier: HealthTier
+  label: string
+}
+
+export interface HealthComponentCobertura {
+  value: number | null
+  points: number
+  tier: HealthTier
+  label: string
+  method: CoberturaMethod
+}
+
+export interface HealthComposicao {
+  classificacao_declarada: string | null
+  breakdown: {
+    cri_cra_pct: number | null
+    titulos_privados_pct: number | null
+    fundos_renda_fixa_pct: number | null
+    imoveis_renda_pct: number | null
+    outros_pct: number | null
+  }
+}
+
+export interface HealthData {
+  score: number
+  max_score: number
+  tier: HealthTier
+  tier_label: string
+  narrative: string
+  components: {
+    alavancagem: HealthComponentAlavancagem
+    cobertura_dividendos: HealthComponentCobertura
+  }
+  composicao: HealthComposicao | null
+}
+
 export interface FundData {
   ticker: string
   nome: string
@@ -131,6 +173,8 @@ export interface FundData {
   cdi_anual: number
 
   gestor: GestorData | null
+
+  health: HealthData | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -272,6 +316,8 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
     cdi_anual: cdiData ? cdiData.cdi_anual : CDI_MENSAL * 12,
 
     gestor: gestorData ?? null,
+
+    health: (informe && informe.health) ? informe.health as HealthData : null,
   }
 }
 

@@ -5,6 +5,7 @@ import { SearchBar } from '@/components/SearchBar'
 import { FundHeader } from '@/components/FundHeader'
 import { PriceCard } from '@/components/PriceCard'
 import { VolatilityCard, LiquidityCard } from '@/components/MetricsCards'
+import { HealthCard } from '@/components/HealthCard'
 import { DividendCard } from '@/components/DividendCard'
 import { SimulatorCard } from '@/components/SimulatorCard'
 import { AIManagerCard } from '@/components/AIManagerCard'
@@ -135,6 +136,9 @@ export default function FundPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 animate-fade-in" style={{ animationDelay: '120ms' }}>
               <VolatilityCard fund={fund} />
               <LiquidityCard fund={fund} />
+            </div>
+            <div className="animate-fade-in" style={{ animationDelay: '160ms' }}>
+              <HealthCard fund={fund} />
             </div>
             <div className="animate-fade-in" style={{ animationDelay: '180ms' }}>
               <DividendCard fund={fund} />
