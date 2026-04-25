@@ -32,6 +32,7 @@ import argparse
 import base64
 import json as _json
 import logging
+import random
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, date
@@ -52,9 +53,11 @@ GRID_ENDPOINT   = f"{API_BASE}/pesquisarGerenciadorDocumentosDados"
 DL_ENDPOINT     = f"{API_BASE}/downloadDocumento"
 PAGE_SIZE       = 100
 MAX_RETRIES     = 5
-RETRY_DELAY     = 15
+RETRY_DELAY     = 30          # increased from 15 to give CVM longer to cool down
 RETRY_BACKOFF   = 2.0
-REQUEST_DELAY   = 1.0
+REQUEST_DELAY   = 2.5         # increased from 1.0 — slower per-page rate
+REQUEST_JITTER  = 1.5         # ± random seconds added to each delay
+MAX_GRID_PAGES  = 10          # cap pagination depth in incremental mode
 COMMIT_BATCH    = 50
 CONNECT_TIMEOUT = 15
 READ_TIMEOUT    = 90
@@ -90,6 +93,13 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # HTTP session
 # ---------------------------------------------------------------------------
+def jittered_sleep(base: float, jitter: float = REQUEST_JITTER) -> None:
+    """Sleep `base` seconds plus a random ± jitter, never less than 0.5s.
+    Reduces 'mechanical timing' fingerprint that WAFs use to flag bots."""
+    delay = base + random.uniform(-jitter, jitter)
+    time.sleep(max(0.5, delay))
+
+
 def make_session() -> requests.Session:
     session = requests.Session()
     session.headers.update(HEADERS)
@@ -204,7 +214,7 @@ def fetch_all_document_ids(resume_ids: set, session: requests.Session) -> list:
         except Exception as e:
             log.error(f"Failed page at offset {offset} — skipping: {e}")
         offset += PAGE_SIZE
-        time.sleep(REQUEST_DELAY)
+        jittered_sleep(REQUEST_DELAY)
 
     if resume_ids:
         before = len(all_docs)
@@ -253,6 +263,16 @@ def fetch_incremental_document_ids(
     offset += PAGE_SIZE
 
     while not done and offset < total:
+        # Hard cap on pagination depth — incremental runs typically need 1-3 pages.
+        # If we go beyond this, something's wrong (cutoff date too old, or CVM
+        # not returning 'desc' order). Better to error out than hammer the API.
+        if offset >= MAX_GRID_PAGES * PAGE_SIZE:
+            log.warning(
+                f"Hit MAX_GRID_PAGES cap ({MAX_GRID_PAGES}) — stopping. "
+                f"If new docs are missing, run --full once to backfill."
+            )
+            break
+
         try:
             data = fetch_grid_json(session, {
                 **GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
@@ -273,7 +293,7 @@ def fetch_incremental_document_ids(
             break
 
         offset += PAGE_SIZE
-        time.sleep(REQUEST_DELAY)
+        jittered_sleep(REQUEST_DELAY)
 
     log.info(f"New documents to download: {len(new_docs):,}")
     return new_docs
@@ -566,7 +586,7 @@ def scrape(resume: bool = False, retry_errors: bool = False,
 
         if hasattr(pbar, "set_postfix_str"):
             pbar.set_postfix_str(f"OK:{success:,} ERR:{failed:,}")
-        time.sleep(REQUEST_DELAY)
+        jittered_sleep(REQUEST_DELAY)
 
     # Flush remaining buffer
     if batch_buf:
