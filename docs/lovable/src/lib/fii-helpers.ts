@@ -82,46 +82,21 @@ export interface GestorData {
   processado_em: string | null
 }
 
-export type HealthTier = 'saudavel' | 'atencao' | 'risco'
-export type CoberturaMethod = '12m_avg' | '3m_fallback' | 'pass_through'
-
-export interface HealthComponentAlavancagem {
-  value: number | null
-  points: number
-  tier: HealthTier
-  label: string
+export interface ProfileComposicao {
+  cri_cra_pct: number | null
+  titulos_privados_pct: number | null
+  fundos_renda_fixa_pct: number | null
+  imoveis_renda_pct: number | null
+  fii_pct: number | null
+  acoes_sociedades_ativ_fii_pct: number | null
+  outros_pct: number | null
 }
 
-export interface HealthComponentCobertura {
-  value: number | null
-  points: number
-  tier: HealthTier
-  label: string
-  method: CoberturaMethod
-}
-
-export interface HealthComposicao {
-  classificacao_declarada: string | null
-  breakdown: {
-    cri_cra_pct: number | null
-    titulos_privados_pct: number | null
-    fundos_renda_fixa_pct: number | null
-    imoveis_renda_pct: number | null
-    outros_pct: number | null
-  }
-}
-
-export interface HealthData {
-  score: number
-  max_score: number
-  tier: HealthTier
-  tier_label: string
-  narrative: string
-  components: {
-    alavancagem: HealthComponentAlavancagem
-    cobertura_dividendos: HealthComponentCobertura
-  }
-  composicao: HealthComposicao | null
+export interface ProfileData {
+  competencia: string                          // ISO date e.g. "2025-12-31"
+  classificacao_declarada: string
+  subclassificacao_declarada: string | null
+  composicao: ProfileComposicao
 }
 
 export interface FundData {
@@ -174,7 +149,7 @@ export interface FundData {
 
   gestor: GestorData | null
 
-  health: HealthData | null
+  profile: ProfileData | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -317,7 +292,7 @@ export function buildFundData(ticker: string, preco: any, div: any, informe: any
 
     gestor: gestorData ?? null,
 
-    health: (informe && informe.health) ? informe.health as HealthData : null,
+    profile: (informe && informe.profile) ? informe.profile as ProfileData : null,
   }
 }
 
