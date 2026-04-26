@@ -508,17 +508,26 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
                nome_administrador,
                cnpj_administrador,
                competencia,
-               total_cotistas,
+               -- Compute total cotistas from subtype breakdown
+               (COALESCE(pessoa_fisica, 0) + COALESCE(pj_nao_financeira, 0)
+                + COALESCE(banco_comercial, 0) + COALESCE(corretora_distribuidora, 0)
+                + COALESCE(outras_pj_financeiras, 0) + COALESCE(investidores_nao_residentes, 0)
+                + COALESCE(entidade_aberta_prev_compl, 0) + COALESCE(entidade_fechada_prev_compl, 0)
+                + COALESCE(regime_proprio_prev, 0) + COALESCE(sociedade_seguradora, 0)
+                + COALESCE(sociedade_cap_arrend_mercantil, 0)
+                + COALESCE(fundos_inv_imobiliario, 0) + COALESCE(outros_fundos_inv, 0)
+                + COALESCE(cotistas_dist_fundo, 0) + COALESCE(outros_tipos_cotistas, 0)
+               ) AS total_cotistas,
                pessoa_fisica,
                ativo_total,
                patrimonio_liquido,
                num_cotas_emitidas,
                valor_patr_cotas,
-               despesas_tx_adm,
-               rent_patr_mensal,
+               despesas_tx_administracao,
+               rent_patrimonial_mes,
                dividend_yield_mes,
                total_investido,
-               imoveis_renda,
+               imoveis_renda_acabados,
                titulos_privados,
                fundos_renda_fixa,
                cri_cra,
@@ -526,7 +535,7 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
                rendimentos_distribuir
         FROM informe_mensal
         WHERE cnpj_fundo = %s
-        ORDER BY competencia DESC
+        ORDER BY competencia DESC, id_documento DESC
         LIMIT 1
         """,
         (cnpj,),
@@ -606,15 +615,15 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         # Quotas & admin
         "cotas_emitidas": f(row["num_cotas_emitidas"]),
         "nav_cota": f(row["valor_patr_cotas"]),
-        "tx_adm": f(row["despesas_tx_adm"]),
+        "tx_adm": f(row["despesas_tx_administracao"]),
 
         # Returns
         "dy_mes": f(row["dividend_yield_mes"]),
-        "rent_mensal": f(row["rent_patr_mensal"]),
+        "rent_mensal": f(row["rent_patrimonial_mes"]),
 
         # Portfolio composition (raw values in BRL)
         "total_investido": f(row["total_investido"]),
-        "imoveis_renda": f(row["imoveis_renda"]),
+        "imoveis_renda": f(row["imoveis_renda_acabados"]),
         "titulos_privados": f(row["titulos_privados"]),
         "fundos_renda_fixa": f(row["fundos_renda_fixa"]),
         "cri_cra": f(row["cri_cra"]),
