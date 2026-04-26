@@ -466,10 +466,10 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
 @limiter.limit("30/minute")
 def get_fundo_informe(request: Request, ticker: str = Query(...)):
     """
-    Returns the latest informe mensal for a given ticker. Full 27-field dump plus
-    a computed `health` object with alavancagem + cobertura de dividendos scoring
-    (0-4 total) and composition percentages. `health` is None if the fund lacks
-    enough data (e.g., new fund without dividend history).
+    Returns the latest informe mensal for a given ticker. Full informe data plus
+    a `profile` object with composition percentages (% of ativo_total in each
+    asset class) and the declared CVM classification. `profile` is None if no
+    filing exists for this fund.
     """
     t = validate_ticker(ticker)
 
@@ -526,61 +526,41 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
     if not row:
         raise HTTPException(status_code=404, detail=f"Informe mensal não encontrado para {t}")
 
-    # Pull computed health metrics from the view (cheap single-row lookup)
-    health_row = query_one(
+    # Pull composition from the fund_profile view (cheap single-row lookup)
+    profile_row = query_one(
         """
-        SELECT alavancagem_ratio, alav_pts, alav_tier, alav_label,
-               cobertura_meses, cobert_pts, cobert_tier, cobert_label, cobertura_method,
-               score, max_score, tier,
-               narrative_full, narrative_partial,
+        SELECT competencia,
                classificacao_declarada,
-               cri_cra_pct, titulos_privados_pct,
-               fundos_renda_fixa_pct, imoveis_renda_pct, outros_pct
-        FROM fund_health_score
+               subclassificacao_declarada,
+               cri_cra_pct,
+               titulos_privados_pct,
+               fundos_renda_fixa_pct,
+               imoveis_renda_pct,
+               fii_pct,
+               acoes_sociedades_ativ_fii_pct,
+               outros_pct
+        FROM fund_profile
         WHERE cnpj_fundo = %s
         """,
         (cnpj,),
     )
 
-    # Build the nested health object. None if we have no usable data at all.
-    health = None
-    if health_row and (health_row["alav_pts"] is not None or health_row["cobert_pts"] is not None):
-        narrative = health_row["narrative_full"] or health_row["narrative_partial"]
-
-        health = {
-            "score": health_row["score"],
-            "max_score": health_row["max_score"],
-            "tier": health_row["tier"],
-            "tier_label": {
-                "saudavel": "Saudável",
-                "atencao": "Atenção",
-                "risco": "Risco",
-            }.get(health_row["tier"]),
-            "narrative": narrative,
-            "components": {
-                "alavancagem": None if health_row["alav_pts"] is None else {
-                    "value": f(health_row["alavancagem_ratio"]),
-                    "points": health_row["alav_pts"],
-                    "tier": health_row["alav_tier"],
-                    "label": health_row["alav_label"],
-                },
-                "cobertura_dividendos": None if health_row["cobert_pts"] is None else {
-                    "value": f(health_row["cobertura_meses"]),
-                    "points": health_row["cobert_pts"],
-                    "tier": health_row["cobert_tier"],
-                    "label": health_row["cobert_label"],
-                    "method": health_row["cobertura_method"],
-                },
-            },
+    # Build the nested profile object. None when ativo_total is missing
+    # (informe never filed or filing is incomplete).
+    profile = None
+    if profile_row:
+        profile = {
+            "competencia": iso(profile_row["competencia"]),
+            "classificacao_declarada":    profile_row["classificacao_declarada"],
+            "subclassificacao_declarada": profile_row["subclassificacao_declarada"],
             "composicao": {
-                "classificacao_declarada": health_row["classificacao_declarada"],
-                "breakdown": {
-                    "cri_cra_pct":           f(health_row["cri_cra_pct"]),
-                    "titulos_privados_pct":  f(health_row["titulos_privados_pct"]),
-                    "fundos_renda_fixa_pct": f(health_row["fundos_renda_fixa_pct"]),
-                    "imoveis_renda_pct":     f(health_row["imoveis_renda_pct"]),
-                    "outros_pct":            f(health_row["outros_pct"]),
-                },
+                "cri_cra_pct":                    f(profile_row["cri_cra_pct"]),
+                "titulos_privados_pct":           f(profile_row["titulos_privados_pct"]),
+                "fundos_renda_fixa_pct":          f(profile_row["fundos_renda_fixa_pct"]),
+                "imoveis_renda_pct":              f(profile_row["imoveis_renda_pct"]),
+                "fii_pct":                        f(profile_row["fii_pct"]),
+                "acoes_sociedades_ativ_fii_pct":  f(profile_row["acoes_sociedades_ativ_fii_pct"]),
+                "outros_pct":                     f(profile_row["outros_pct"]),
             },
         }
 
@@ -634,8 +614,8 @@ def get_fundo_informe(request: Request, ticker: str = Query(...)):
         # Distributable income
         "rendimentos_distribuir": f(row["rendimentos_distribuir"]),
 
-        # Computed health score (nested object, None if insufficient data)
-        "health": health,
+        # Composition snapshot from the latest informe (None if no filing exists)
+        "profile": profile,
     }
 
 

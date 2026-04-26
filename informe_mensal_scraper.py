@@ -27,7 +27,15 @@ import base64
 import logging
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
+
+# Load .env so DATABASE_URL is available when running locally.
+# On Railway this is a no-op (env vars are injected by the platform).
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 import requests
 
@@ -41,8 +49,13 @@ GRID_ENDPOINT = f"{API_BASE}/pesquisarGerenciadorDocumentosDados"
 DL_ENDPOINT   = f"{API_BASE}/downloadDocumento"
 PAGE_SIZE     = 100
 MAX_RETRIES   = 3
-RETRY_DELAY   = 5
-REQUEST_DELAY = 0.5
+RETRY_DELAY   = 30   # was 5; CVM needs longer to cool down
+REQUEST_DELAY = 1.5  # was 0.5; slower per-page rate to look less bot-like
+
+# Hard retention window. We only fetch docs whose dataReferencia falls within
+# this many months from today. Older filings are ignored entirely — they
+# wouldn't get inserted, and existing rows older than this stay frozen.
+RETENTION_MONTHS = 24
 
 GRID_PARAMS = {
     "idCategoriaDocumento": 6,    # Informes Periódicos
@@ -51,6 +64,9 @@ GRID_PARAMS = {
     "situacao":             "A",
     "isSession":            "false",
     "o[0][dataReferencia]": "desc",   # newest first (critical for incremental)
+    # CVM-side date filter — sends only docs with dataReferencia >= this.
+    # Format: DD/MM/YYYY. URL-encoded by requests at send time.
+    "dataInicial":          "01/01/2024",
 }
 
 # ---------------------------------------------------------------------------
@@ -98,6 +114,32 @@ def parse_competencia(val: str | None):
         return None
 
 
+def retention_cutoff_str() -> str:
+    """
+    Returns the retention cutoff date in 'DD/MM/YYYY' format, matching what
+    CVM uses in dataReferencia. Docs older than this are skipped entirely.
+    """
+    cutoff_dt = datetime.now() - timedelta(days=RETENTION_MONTHS * 30)
+    return cutoff_dt.strftime("%d/%m/%Y")
+
+
+def is_within_retention(doc: dict, cutoff_str: str) -> bool:
+    """
+    Whether a CVM grid result falls within the retention window. Compares
+    dataReferencia (DD/MM/YYYY format) against the cutoff string lexically
+    — works because DD/MM/YYYY isn't lex-sortable, so we parse explicitly.
+    """
+    ref = (doc.get("dataReferencia") or "")[:10]
+    if not ref or len(ref) < 10:
+        return True  # be conservative — keep ambiguous rows
+    try:
+        ref_dt = datetime.strptime(ref, "%d/%m/%Y")
+        cutoff_dt = datetime.strptime(cutoff_str, "%d/%m/%Y")
+        return ref_dt >= cutoff_dt
+    except ValueError:
+        return True  # malformed date — keep it, let downstream handle
+
+
 # ---------------------------------------------------------------------------
 # HTTP helper with informative errors
 # ---------------------------------------------------------------------------
@@ -108,7 +150,7 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
     CVM occasionally serves WAF challenges or maintenance pages; those are
     worth seeing in the logs.
     """
-    resp = session.get(GRID_ENDPOINT, params=params, timeout=60)
+    resp = session.get(GRID_ENDPOINT, params=params, timeout=120)
     try:
         return resp.json()
     except ValueError as e:
@@ -127,20 +169,26 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
 # Grid fetch — full mode
 # ---------------------------------------------------------------------------
 def fetch_all_document_ids(resume_ids: set) -> list:
-    log.info("Fetching full document list from B3 API...")
+    cutoff_str = retention_cutoff_str()
+    log.info(f"Fetching documents from CVM API (retention cutoff: {cutoff_str})...")
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"})
     all_docs: list = []
     offset = 0
     total = None
+    done = False
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             params = {**GRID_PARAMS, "s": 0, "l": PAGE_SIZE, "d": 1}
             data = fetch_grid_json(session, params)
             total = data["recordsFiltered"]
-            all_docs.extend(data["data"])
             log.info(f"Total documents on B3: {total:,}")
+            for doc in data["data"]:
+                if not is_within_retention(doc, cutoff_str):
+                    done = True
+                    break
+                all_docs.append(doc)
             break
         except Exception as e:
             log.warning(f"First page attempt {attempt}/{MAX_RETRIES} failed: {e}")
@@ -150,21 +198,51 @@ def fetch_all_document_ids(resume_ids: set) -> list:
                 raise
 
     offset += PAGE_SIZE
-    while offset < total:
+    n_pages_total = (total + PAGE_SIZE - 1) // PAGE_SIZE
+    grid_pbar = wrap(
+        range(1, n_pages_total),  # we already fetched page 1 above
+        desc="Scanning CVM grid",
+        unit="page",
+        total=n_pages_total - 1,
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+    )
+
+    grid_iter = iter(grid_pbar)
+
+    while not done and offset < total:
+        try:
+            next(grid_iter)
+        except StopIteration:
+            break
+
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 params = {**GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
                           "d": offset // PAGE_SIZE + 1}
                 data = fetch_grid_json(session, params)
-                batch = data["data"]
-                all_docs.extend(batch)
+                for doc in data["data"]:
+                    if not is_within_retention(doc, cutoff_str):
+                        done = True
+                        break
+                    all_docs.append(doc)
                 break
             except Exception as e:
                 log.warning(f"Page error at offset {offset} attempt {attempt}/{MAX_RETRIES}: {e}")
                 if attempt < MAX_RETRIES:
                     time.sleep(RETRY_DELAY)
+
+        if hasattr(grid_pbar, "set_postfix_str"):
+            grid_pbar.set_postfix_str(f"docs: {len(all_docs):,}")
+
+        if done:
+            log.info(f"Reached retention cutoff {cutoff_str} — stopping grid scan")
+            break
+
         offset += PAGE_SIZE
         time.sleep(REQUEST_DELAY)
+
+    if hasattr(grid_pbar, "close"):
+        grid_pbar.close()
 
     if resume_ids:
         before = len(all_docs)
@@ -179,7 +257,9 @@ def fetch_all_document_ids(resume_ids: set) -> list:
 # Grid fetch — incremental mode (stops at first known ID)
 # ---------------------------------------------------------------------------
 def fetch_incremental_document_ids(max_known_id: int) -> list:
-    log.info(f"Incremental mode — fetching docs newer than ID {max_known_id:,}...")
+    cutoff_str = retention_cutoff_str()
+    log.info(f"Incremental mode — fetching docs newer than ID {max_known_id:,} "
+             f"(retention cutoff: {cutoff_str})...")
     session = requests.Session()
     session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", "Accept": "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"})
     new_docs: list = []
@@ -195,6 +275,9 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
             log.info(f"Total documents on B3: {total:,}")
             for doc in data["data"]:
                 if doc["id"] <= max_known_id:
+                    done = True
+                    break
+                if not is_within_retention(doc, cutoff_str):
                     done = True
                     break
                 new_docs.append(doc)
@@ -218,6 +301,9 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
                     if doc["id"] <= max_known_id:
                         done = True
                         break
+                    if not is_within_retention(doc, cutoff_str):
+                        done = True
+                        break
                     new_docs.append(doc)
                 break
             except Exception as e:
@@ -226,7 +312,7 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
                     time.sleep(RETRY_DELAY)
 
         if done:
-            log.info(f"Reached known ID {max_known_id:,} — stopping grid scan")
+            log.info(f"Stopped grid scan (hit known ID or retention cutoff)")
             break
 
         offset += PAGE_SIZE
@@ -241,7 +327,7 @@ def fetch_incremental_document_ids(max_known_id: int) -> list:
 # ---------------------------------------------------------------------------
 def download_and_parse(doc_id: int, session: requests.Session) -> dict:
     url = f"{DL_ENDPOINT}?id={doc_id}"
-    resp = session.get(url, timeout=60)
+    resp = session.get(url, timeout=120)
     resp.raise_for_status()
 
     raw = resp.text.strip().strip('"')
