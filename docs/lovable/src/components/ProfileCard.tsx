@@ -2,35 +2,27 @@ import { type FundData, type ProfileComposicao } from '@/lib/fii-helpers'
 
 // ============================================================================
 // Categories — order in the bar (left-to-right), label, visibility rules
-// Color is computed at render time from a monochrome ramp based on the
-// app's --accent token (blue in light, green in dark).
+//
+// Each category has a fixed color from a 7-tone categorical palette.
+// Tones picked to be distinguishable in both light and dark themes,
+// avoiding the brand accent (which is reserved for actions/highlights).
 // ============================================================================
 interface Category {
   key: keyof ProfileComposicao
   label: string
+  color: string
   alwaysShowIfPositive?: boolean   // FII / ações soc must render even tiny
 }
 
 const CATEGORIES: Category[] = [
-  { key: 'cri_cra_pct',                    label: 'CRI/CRA' },
-  { key: 'titulos_privados_pct',           label: 'Títulos privados' },
-  { key: 'fundos_renda_fixa_pct',          label: 'Fundos RF' },
-  { key: 'imoveis_renda_pct',              label: 'Imóveis renda' },
-  { key: 'fii_pct',                        label: 'FII',                  alwaysShowIfPositive: true },
-  { key: 'acoes_sociedades_ativ_fii_pct',  label: 'Ações soc. ativ. FII', alwaysShowIfPositive: true },
-  { key: 'outros_pct',                     label: 'Outros' },
+  { key: 'cri_cra_pct',                    label: 'CRI/CRA',              color: '#3b82f6' /* blue */            },
+  { key: 'titulos_privados_pct',           label: 'Títulos privados',     color: '#06b6d4' /* cyan */            },
+  { key: 'fundos_renda_fixa_pct',          label: 'Fundos RF',            color: '#f59e0b' /* amber */           },
+  { key: 'imoveis_renda_pct',              label: 'Imóveis renda',        color: '#10b981' /* emerald */         },
+  { key: 'fii_pct',                        label: 'FII',                  color: '#a855f7' /* purple */,         alwaysShowIfPositive: true },
+  { key: 'acoes_sociedades_ativ_fii_pct',  label: 'Ações soc. ativ. FII', color: '#ec4899' /* pink */,           alwaysShowIfPositive: true },
+  { key: 'outros_pct',                     label: 'Outros',               color: '#94a3b8' /* slate */           },
 ]
-
-/**
- * Map an index in 0..n-1 (where 0 = largest) to opacity in 0.30..1.00.
- * Used to render each segment in `hsl(var(--accent))` at varying opacity,
- * giving a monochrome dark→light ramp. Theme-aware automatically since
- * --accent is blue in light mode and green in dark.
- */
-function rampOpacity(rank: number, total: number): number {
-  if (total <= 1) return 1
-  return 1 - (rank / (total - 1)) * 0.7   // 1.0 → 0.3
-}
 
 // ============================================================================
 // Helpers
@@ -49,6 +41,7 @@ function fmtPct(v: number): string {
 interface VisibleSegment {
   key: string
   label: string
+  color: string
   value: number
   alwaysShow: boolean
 }
@@ -58,6 +51,7 @@ function getVisibleSegments(c: ProfileComposicao): VisibleSegment[] {
     .map(cat => ({
       key: cat.key,
       label: cat.label,
+      color: cat.color,
       value: c[cat.key] ?? 0,
       alwaysShow: !!cat.alwaysShowIfPositive,
     }))
@@ -125,25 +119,15 @@ export function ProfileCard({ fund }: { fund: FundData }) {
   const segments = getVisibleSegments(p.composicao)
   const total = segments.reduce((s, x) => s + x.value, 0) || 1
 
-  // Rank by descending value to assign an opacity (largest = fullest = darkest).
+  // Sort descending by value — bar AND legend use the same order
   const sortedByValue = [...segments].sort((a, b) => b.value - a.value)
-  const opacityByKey = new Map<string, number>()
-  sortedByValue.forEach((s, rank) => {
-    opacityByKey.set(s.key, rampOpacity(rank, sortedByValue.length))
-  })
 
-  // Bar keeps the canonical category order; only opacity varies by rank.
-  const segmentsForBar = segments.map(s => ({
+  const segmentsForBar = sortedByValue.map(s => ({
     ...s,
-    opacity: opacityByKey.get(s.key)!,
     pct: (s.value / total) * 100,
   }))
 
-  // Legend renders in descending value order
-  const legendSorted = sortedByValue.map(s => ({
-    ...s,
-    opacity: opacityByKey.get(s.key)!,
-  }))
+  const legendSorted = sortedByValue
 
   return (
     <CardShell>
@@ -171,8 +155,7 @@ export function ProfileCard({ fund }: { fund: FundData }) {
             style={{
               flex: `${s.pct} ${s.pct} 0`,
               minWidth: s.alwaysShow ? '4px' : 0,
-              backgroundColor: 'hsl(var(--accent))',
-              opacity: s.opacity,
+              backgroundColor: s.color,
             }}
             title={`${s.label}: ${fmtPct(s.value)}`}
           />
@@ -185,7 +168,7 @@ export function ProfileCard({ fund }: { fund: FundData }) {
           <li key={s.key} className="inline-flex items-center gap-2 text-[12px]">
             <span
               className="w-2.5 h-2.5 rounded-[2px] flex-shrink-0"
-              style={{ backgroundColor: 'hsl(var(--accent))', opacity: s.opacity }}
+              style={{ backgroundColor: s.color }}
               aria-hidden="true"
             />
             <span className="text-muted-foreground">{s.label}</span>
