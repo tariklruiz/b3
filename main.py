@@ -220,7 +220,7 @@ def get_prices(
                preco_abertura   AS open,
                preco_maximo     AS high,
                preco_minimo     AS low,
-               preco_ultimo     AS close,
+               preco_ultimo_adj AS close,
                vol_negocios     AS volume,
                num_negocios     AS trades
         FROM cotahist
@@ -324,10 +324,10 @@ def get_fundo_preco(request: Request, ticker: str = Query(...)):
     rows = query_all(
         """
         SELECT dt_pregao     AS date,
-               preco_ultimo  AS close,
+               preco_ultimo_adj AS close,
                num_negocios  AS trades
         FROM cotahist
-        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo > 0
+        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo_adj > 0
         ORDER BY dt_pregao DESC
         LIMIT 520
         """,
@@ -424,9 +424,9 @@ def get_fundo_dividendos(request: Request, ticker: str = Query(...)):
     # DY pills — using last known price
     preco_row = query_one(
         """
-        SELECT preco_ultimo AS preco
+        SELECT preco_ultimo_adj AS preco
         FROM cotahist
-        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo > 0
+        WHERE cod_neg = %s AND tp_merc = 10 AND preco_ultimo_adj > 0
         ORDER BY dt_pregao DESC
         LIMIT 1
         """,
@@ -712,9 +712,9 @@ def _calc_benchmarks() -> dict:
         """
         SELECT DISTINCT ON (cod_neg)
                cod_neg      AS ticker,
-               preco_ultimo AS preco
+               preco_ultimo_adj AS preco
         FROM cotahist
-        WHERE tp_merc = 10 AND preco_ultimo > 0
+        WHERE tp_merc = 10 AND preco_ultimo_adj > 0
         ORDER BY cod_neg, dt_pregao DESC
         """
     )
