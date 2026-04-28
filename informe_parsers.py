@@ -101,6 +101,20 @@ def parse_brazilian_date(val: str | None) -> object:
         return None
 
 
+def clean_cnpj(val: str | None) -> str | None:
+    """
+    Normalize a CNPJ to digits-only. CVM XMLs sometimes use the formatted
+    '00.000.000/0000-00' form and sometimes the raw '00000000000000' form;
+    we always store digits-only so JOINs and WHERE-clauses match.
+
+    Returns None if the input is empty or doesn't yield 14 digits.
+    """
+    if not val:
+        return None
+    digits = "".join(c for c in val if c.isdigit())
+    return digits if len(digits) == 14 else None
+
+
 # ---------------------------------------------------------------------------
 # FII parser — CVM 571/2015 schema, root: <DadosEconomicoFinanceiros>
 # ---------------------------------------------------------------------------
@@ -126,7 +140,7 @@ def parse_fii(xml_text: str) -> dict:
     return {
         # Identity
         "nome_fundo":                _get(root, ".//NomeFundo"),
-        "cnpj_fundo":                _get(root, ".//CNPJFundo"),
+        "cnpj_fundo":                clean_cnpj(_get(root, ".//CNPJFundo")),
         "codigo_isin":               _get(root, ".//CodigoISIN"),
         "data_funcionamento":        parse_iso_date(_get(root, ".//DataFuncionamento")),
         "publico_alvo":              _get(root, ".//PublicoAlvo"),
@@ -148,7 +162,7 @@ def parse_fii(xml_text: str) -> dict:
 
         # Administrador
         "nome_administrador": _get(root, ".//NomeAdministrador"),
-        "cnpj_administrador": _get(root, ".//CNPJAdministrador"),
+        "cnpj_administrador": clean_cnpj(_get(root, ".//CNPJAdministrador")),
         "logradouro":  _get(root, ".//Logradouro"),
         "numero":      _get(root, ".//Numero"),
         "complemento": _get(root, ".//Complemento"),
@@ -273,9 +287,9 @@ def parse_fiagro(xml_text: str) -> dict:
     return {
         # Cabeçalho
         "nm_fundo":              _get(root, ".//NM_FUNDO"),
-        "nr_cnpj_fundo":         _get(root, ".//NR_CNPJ_FUNDO"),
+        "nr_cnpj_fundo":         clean_cnpj(_get(root, ".//NR_CNPJ_FUNDO")),
         "nm_classe":             _get(root, ".//NM_CLASSE"),
-        "nr_cnpj_classe":        _get(root, ".//NR_CNPJ_CLASSE"),
+        "nr_cnpj_classe":        clean_cnpj(_get(root, ".//NR_CNPJ_CLASSE")),
         "dt_regs_func":          parse_brazilian_date(_get(root, ".//DT_REGS_FUNC")),
         "tp_publ_alvo":          _get(root, ".//TP_PUBL_ALVO"),
         "cd_isin":               _get(root, ".//CD_ISIN"),
@@ -290,9 +304,9 @@ def parse_fiagro(xml_text: str) -> dict:
 
         # Administrador / Gestor
         "nm_adm":             _get(root, ".//NM_ADM"),
-        "nr_cnpj_adm":        _get(root, ".//NR_CNPJ_ADM"),
+        "nr_cnpj_adm":        clean_cnpj(_get(root, ".//NR_CNPJ_ADM")),
         "nm_gestor":          _get(root, ".//NM_GESTOR"),
-        "nr_cnpj_gestor":     _get(root, ".//NR_CNPJ_GESTOR"),
+        "nr_cnpj_gestor":     clean_cnpj(_get(root, ".//NR_CNPJ_GESTOR")),
         "email_adm":          _get(root, ".//EMAIL_ADM"),
         "site":               _get(root, ".//SITE"),
         "serv_atend_cotst":   _get(root, ".//SERV_ATEND_COTST"),

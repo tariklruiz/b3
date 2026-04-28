@@ -190,6 +190,20 @@ def parse_bool_isento(val) -> bool | None:
     return None
 
 
+def clean_cnpj(val: str | None) -> str | None:
+    """
+    Normalize a CNPJ to digits-only. CVM XMLs sometimes use the formatted
+    '00.000.000/0000-00' form and sometimes the raw '00000000000000' form;
+    we always store digits-only so JOINs and WHERE-clauses match.
+
+    Returns None if the input is empty or doesn't yield 14 digits.
+    """
+    if not val:
+        return None
+    digits = "".join(c for c in val if c.isdigit())
+    return digits if len(digits) == 14 else None
+
+
 # ---------------------------------------------------------------------------
 # Grid fetch — full mode
 # ---------------------------------------------------------------------------
@@ -204,17 +218,31 @@ def fetch_all_document_ids(resume_ids: set, session: requests.Session) -> list:
     log.info(f"Total documents on B3: {total:,}")
     offset += PAGE_SIZE
 
-    while offset < total:
-        try:
-            data = fetch_grid_json(session, {
-                **GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
-                "d": offset // PAGE_SIZE + 1,
-            })
-            all_docs.extend(data["data"])
-        except Exception as e:
-            log.error(f"Failed page at offset {offset} — skipping: {e}")
-        offset += PAGE_SIZE
-        jittered_sleep(REQUEST_DELAY)
+    # Progress bar for grid scan
+    try:
+        from tqdm import tqdm
+        grid_bar = tqdm(total=total, desc="Grid scan", unit="doc",
+                        initial=PAGE_SIZE, leave=False)
+    except ImportError:
+        grid_bar = None
+
+    try:
+        while offset < total:
+            try:
+                data = fetch_grid_json(session, {
+                    **GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
+                    "d": offset // PAGE_SIZE + 1,
+                })
+                all_docs.extend(data["data"])
+            except Exception as e:
+                log.error(f"Failed page at offset {offset} — skipping: {e}")
+            if grid_bar:
+                grid_bar.update(PAGE_SIZE)
+            offset += PAGE_SIZE
+            jittered_sleep(REQUEST_DELAY)
+    finally:
+        if grid_bar:
+            grid_bar.close()
 
     if resume_ids:
         before = len(all_docs)
@@ -354,7 +382,7 @@ def download_and_parse(doc_id: int, session: requests.Session) -> dict:
     # XML also contains nome_fundo, nome_administrador, cnpj_administrador,
     # ano, cod_isin, periodo_referencia — those are read but discarded.
     return {
-        "cnpj_fundo":      get(".//CNPJFundo"),
+        "cnpj_fundo":      clean_cnpj(get(".//CNPJFundo")),
         "cod_negociacao":  get(".//CodNegociacao"),
         "data_informacao": parse_date(get(".//DataInformacao")),
         "data_base":       parse_date(get(".//DataBase")),
