@@ -11,9 +11,34 @@ const pills = [
 
 export function PriceCard({ fund }: { fund: FundData }) {
   const pvpDiscount = fund.pvp != null ? ((1 - fund.pvp) * 100).toFixed(0) : null
-  const pvpFillWidth = fund.pvp != null
-    ? Math.max(0, Math.min(100, ((fund.pvp - 0.70) / (1.30 - 0.70) * 100))).toFixed(1)
+
+  // ----- Dynamic P/VP range -----
+  // Standard range is [0.70, 1.30]. Expand only when the value falls outside:
+  //   pvp < 0.70 → min becomes pvp * 0.8
+  //   pvp > 1.30 → max becomes pvp * 1.2
+  // Color: yellow (amber) if pvp < 0.8 or > 1.2, otherwise green (profit)
+  const pvp = fund.pvp
+  let pvpMin = 0.70
+  let pvpMax = 1.30
+  if (pvp != null) {
+    if (pvp < 0.70) pvpMin = pvp * 0.8
+    if (pvp > 1.30) pvpMax = pvp * 1.2
+  }
+  const pvpRange = pvpMax - pvpMin
+  const pvpFillWidth = pvp != null
+    ? Math.max(0, Math.min(100, ((pvp - pvpMin) / pvpRange) * 100)).toFixed(1)
     : '0'
+  // 1.00 reference tick — clamp to bar edge if outside the range
+  const justoTickPct = Math.max(0, Math.min(100, ((1 - pvpMin) / pvpRange) * 100)).toFixed(1)
+  const pvpAlert = pvp != null && (pvp < 0.8 || pvp > 1.2)
+  // Tailwind doesn't dynamically generate gradients from variables, so we
+  // pick the gradient class up front (both themes use the same green/yellow).
+  const pvpFillClass = pvpAlert
+    ? 'bg-gradient-to-r from-amber to-amber'
+    : 'bg-gradient-to-r from-profit to-profit'
+
+  // Brazilian decimal formatting (1.20 → "1,20")
+  const fmtBr = (n: number) => n.toFixed(2).replace('.', ',')
 
   return (
     <div className="relative bg-card border border-border rounded-xl p-6 sm:p-8 shadow-sm transition-colors overflow-hidden">
@@ -57,15 +82,20 @@ export function PriceCard({ fund }: { fund: FundData }) {
         </div>
         <div className="relative h-2.5 w-full bg-secondary rounded-full overflow-hidden mt-4">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700 ease-out"
+            className={`h-full rounded-full transition-all duration-700 ease-out ${pvpFillClass}`}
             style={{ width: `${pvpFillWidth}%` }}
           />
-          <div className="absolute top-0 left-1/2 w-[2px] h-full bg-foreground/25 rounded-full" />
+          {/* 1,00 reference tick — clamped to bar edge when range excludes it */}
+          <div
+            className="absolute top-0 w-[2px] h-full bg-foreground/40 rounded-full"
+            style={{ left: `calc(${justoTickPct}% - 1px)` }}
+            aria-hidden="true"
+          />
         </div>
         <div className="flex justify-between mt-2 text-[9px] text-muted-foreground font-mono">
-          <span>0,70 — desconto</span>
+          <span>{fmtBr(pvpMin)} — desconto</span>
           <span className="text-foreground/60 font-semibold">1,00 = justo</span>
-          <span>1,30 — prêmio</span>
+          <span>{fmtBr(pvpMax)} — prêmio</span>
         </div>
       </div>
     </div>
