@@ -92,10 +92,15 @@ export function PriceCard({ fund }: { fund: FundData }) {
             aria-hidden="true"
           />
         </div>
-        <div className="flex justify-between mt-2 text-[9px] text-muted-foreground font-mono">
-          <span>{fmtBr(pvpMin)} — desconto</span>
-          <span className="text-foreground/60 font-semibold">1,00 = justo</span>
-          <span>{fmtBr(pvpMax)} — prêmio</span>
+        <div className="relative mt-2 h-3 text-[9px] text-muted-foreground font-mono">
+          <span className="absolute left-0">{fmtBr(pvpMin)} — desconto</span>
+          <span
+            className="absolute -translate-x-1/2 text-foreground/60 font-semibold whitespace-nowrap"
+            style={{ left: `${justoTickPct}%` }}
+          >
+            1,00 = justo
+          </span>
+          <span className="absolute right-0">{fmtBr(pvpMax)} — prêmio</span>
         </div>
       </div>
     </div>
