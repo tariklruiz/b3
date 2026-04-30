@@ -102,9 +102,52 @@ def log(msg: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Read raw bytes — handles both .zip and .txt distributions from B3
+# ---------------------------------------------------------------------------
+def _read_cotahist_bytes(filepath: str) -> tuple[bytes, str]:
+    """
+    Read COTAHIST content from either a .zip or a .txt file.
+    Returns (raw_bytes, source_name_for_logging).
+
+    B3 distributes COTAHIST as a .zip containing a single COTAHIST_*.TXT.
+    We detect zip by file signature (magic bytes), not extension, so the
+    script works even if the user renames the file.
+    """
+    import io
+    import zipfile
+
+    path = Path(filepath)
+    with open(path, "rb") as f:
+        head = f.read(4)
+        f.seek(0)
+
+        # ZIP magic bytes: 'PK\x03\x04' (or 'PK\x05\x06' for empty archive)
+        if head[:2] == b"PK":
+            log(f"Detected zip — extracting...")
+            with zipfile.ZipFile(f) as zf:
+                # Find the COTAHIST .TXT inside (B3 always uses one .TXT
+                # per zip but we don't hardcode the name)
+                txt_names = [n for n in zf.namelist()
+                             if n.upper().endswith(".TXT")]
+                if not txt_names:
+                    print(f"[ERROR] No .TXT inside zip {path.name}", file=sys.stderr)
+                    sys.exit(1)
+                if len(txt_names) > 1:
+                    log(f"WARN: multiple .TXT files in zip — using {txt_names[0]}")
+                inner_name = txt_names[0]
+                data = zf.read(inner_name)
+                return data, inner_name
+
+        # Otherwise treat as raw .txt
+        return f.read(), path.name
+
+
+# ---------------------------------------------------------------------------
 # Parse
 # ---------------------------------------------------------------------------
 def parse_cotahist(filepath: str) -> pl.DataFrame:
+    import io
+
     path = Path(filepath)
     if not path.exists():
         print(f"[ERROR] File not found: {filepath}", file=sys.stderr)
@@ -112,12 +155,16 @@ def parse_cotahist(filepath: str) -> pl.DataFrame:
 
     log(f"Reading {path.name} ({path.stat().st_size / 1024 / 1024:.1f} MB)...")
 
+    data, source_name = _read_cotahist_bytes(filepath)
+    log(f"Decoded {source_name} ({len(data) / 1024 / 1024:.1f} MB of text)")
+
     raw = pl.read_csv(
-        filepath,
+        io.BytesIO(data),
         has_header=False,
         new_columns=["Col"],
         infer_schema_length=0,
         truncate_ragged_lines=True,
+        encoding="utf8-lossy",
     )
 
     # Keep only type "01" (daily quote records); drop header/trailer
@@ -217,12 +264,62 @@ def load_to_postgres(df: pl.DataFrame, verbose: bool = False) -> tuple[int, int]
 
 
 # ---------------------------------------------------------------------------
+# Recompute adjusted prices for tickers touched by this load
+# ---------------------------------------------------------------------------
+def recompute_affected_tickers(df: pl.DataFrame, verbose: bool = False) -> int:
+    """
+    For every ticker in the freshly loaded data that has at least one event
+    in split_grouping, recompute cotahist.preco_ultimo_adj. Most tickers
+    have no events, so we filter via SQL before doing per-ticker work.
+
+    Returns the number of tickers actually recomputed.
+    """
+    from recompute_adjusted_prices import recompute_ticker
+
+    if len(df) == 0:
+        return 0
+
+    tickers = df["cod_neg"].unique().to_list()
+    log(f"Checking {len(tickers):,} tickers for split_grouping events...")
+
+    with connection() as conn:
+        # Find which of these tickers actually have events. Avoids per-ticker
+        # round-trip for the ~99% of tickers with no corporate actions.
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT ticker FROM split_grouping WHERE ticker = ANY(%s)",
+                (tickers,),
+            )
+            affected = [r[0] for r in cur.fetchall()]
+
+        if not affected:
+            log("No affected tickers — adjusted prices already match raw prices.")
+            return 0
+
+        log(f"Recomputing preco_ultimo_adj for {len(affected):,} ticker(s) "
+            f"with corporate actions...")
+        for t in affected:
+            try:
+                stats = recompute_ticker(conn, t, dry_run=False)
+                if verbose:
+                    log(f"  {t}: {stats}")
+            except Exception as e:
+                log(f"  WARN: recompute failed for {t}: {e}")
+        conn.commit()
+
+    log(f"Recomputed {len(affected):,} ticker(s).")
+    return len(affected)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description="Parse B3 COTAHIST file -> Postgres")
     parser.add_argument("--file",    required=True, help="Path to COTAHIST file (daily or annual)")
     parser.add_argument("--verbose", action="store_true", help="Log each batch commit")
+    parser.add_argument("--no-recompute", action="store_true",
+                        help="Skip the post-load preco_ultimo_adj recompute step")
     args = parser.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -237,6 +334,8 @@ def main() -> int:
     try:
         df = parse_cotahist(args.file)
         load_to_postgres(df, verbose=args.verbose)
+        if not args.no_recompute:
+            recompute_affected_tickers(df, verbose=args.verbose)
     finally:
         close_pool()
 
