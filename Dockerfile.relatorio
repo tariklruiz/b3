@@ -1,0 +1,26 @@
+# Dockerfile.relatorio
+# ============================================================================
+# FII Guia — Relatório Gerencial scraper.
+# Scheduled service: queries relatorio_universe, scans the CVM fnet grid
+# (idCategoriaDocumento=7, idTipoDocumento=9), downloads new PDFs to the
+# Railway volume mounted at /mnt/volumes/relatorios, and indexes metadata
+# into relatorios_gerenciais.
+# ============================================================================
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-scraper-relatorio.txt .
+RUN pip install --no-cache-dir -r requirements-scraper-relatorio.txt
+
+COPY db.py .
+COPY relatorio_scraper.py .
+
+# Volume mount target: configure RELATORIOS_PATH env var on Railway to match
+# (defaults to /mnt/volumes/relatorios if unset).
+CMD ["python", "relatorio_scraper.py"]
