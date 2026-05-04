@@ -74,6 +74,23 @@ RETRY_DELAY   = 30
 REQUEST_DELAY = 1.5
 RETENTION_DAYS = 60
 
+# Browser-like headers to avoid Cloudflare/WAF 403s on CVM fnet.
+# A realistic User-Agent alone is not enough; modern WAFs fingerprint the full
+# header set and flag requests with only "User-Agent" as bot traffic.
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Referer": "https://fnet.bmfbovespa.com.br/fnet/publico/abrirGerenciadorDocumentosCVM",
+    "X-Requested-With": "XMLHttpRequest",
+}
+
 BASE_GRID_PARAMS = {
     "idCategoriaDocumento": 6,
     "idTipoDocumento":      40,
@@ -161,7 +178,7 @@ def fetch_document_ids(tipo_fundo: int, label: str,
     log.info(f"[{label}] Scanning CVM grid since {cutoff_str}...")
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; FIIGuiaBot/1.0)"})
+    session.headers.update(BROWSER_HEADERS)
 
     docs: list[dict] = []
     offset = 0
@@ -477,7 +494,7 @@ def run_pass(tipo_fundo: int, label: str, parser_fn, insert_fn,
         return {"label": label, "downloaded": 0, "parsed": 0, "skipped": 0, "errors": 0}
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; FIIGuiaBot/1.0)"})
+    session.headers.update(BROWSER_HEADERS)
 
     downloaded = 0
     parsed_ok = 0
