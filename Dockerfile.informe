@@ -18,6 +18,7 @@ COPY requirements-scraper-informe.txt .
 RUN pip install --no-cache-dir -r requirements-scraper-informe.txt
 
 COPY db.py .
+COPY informe_parsers.py .
 COPY informe_mensal_scraper.py .
 
 CMD ["python", "informe_mensal_scraper.py", "--incremental"]
