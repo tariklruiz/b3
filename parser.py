@@ -268,11 +268,16 @@ def load_to_postgres(df: pl.DataFrame, verbose: bool = False) -> tuple[int, int]
 # ---------------------------------------------------------------------------
 def recompute_affected_tickers(df: pl.DataFrame, verbose: bool = False) -> int:
     """
-    For every ticker in the freshly loaded data that has at least one event
-    in split_grouping, recompute cotahist.preco_ultimo_adj. Most tickers
-    have no events, so we filter via SQL before doing per-ticker work.
+    Populate cotahist.preco_ultimo_adj for every row of the tickers in the
+    freshly loaded data.
 
-    Returns the number of tickers actually recomputed.
+    Two paths:
+      1. For tickers with NO events in split_grouping, adjusted = raw.
+         Do this in one bulk SQL statement (cheap).
+      2. For tickers WITH events, run the per-ticker math via
+         recompute_ticker() (also cheap, but ticker-by-ticker).
+
+    Returns the number of tickers with events that got the per-ticker recompute.
     """
     from recompute_adjusted_prices import recompute_ticker
 
@@ -280,23 +285,40 @@ def recompute_affected_tickers(df: pl.DataFrame, verbose: bool = False) -> int:
         return 0
 
     tickers = df["cod_neg"].unique().to_list()
-    log(f"Checking {len(tickers):,} tickers for split_grouping events...")
 
     with connection() as conn:
-        # Find which of these tickers actually have events. Avoids per-ticker
-        # round-trip for the ~99% of tickers with no corporate actions.
+        # Step 1: bulk-set adj = raw for any rows of these tickers where adj
+        # is currently NULL or out of sync with raw. This covers the ~99% of
+        # tickers without events AND ensures freshly loaded rows get filled.
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE cotahist
+                SET preco_ultimo_adj = preco_ultimo
+                WHERE cod_neg = ANY(%s)
+                  AND (preco_ultimo_adj IS DISTINCT FROM preco_ultimo)
+                """,
+                (tickers,),
+            )
+            bulk_rows = cur.rowcount
+        conn.commit()
+        log(f"Bulk-set preco_ultimo_adj for {bulk_rows:,} rows "
+            f"(adjusted = raw, before per-ticker overrides).")
+
+        # Step 2: find which of these tickers actually have events.
+        # For those, override the bulk-set with the proper math.
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT DISTINCT ticker FROM split_grouping WHERE ticker = ANY(%s)",
                 (tickers,),
             )
-            affected = [r[0] for r in cur.fetchall()]
+            affected = [r["ticker"] for r in cur.fetchall()]
 
         if not affected:
-            log("No affected tickers — adjusted prices already match raw prices.")
+            log("No tickers in this load have corporate actions.")
             return 0
 
-        log(f"Recomputing preco_ultimo_adj for {len(affected):,} ticker(s) "
+        log(f"Applying per-ticker adjustments for {len(affected):,} ticker(s) "
             f"with corporate actions...")
         for t in affected:
             try:
@@ -307,7 +329,7 @@ def recompute_affected_tickers(df: pl.DataFrame, verbose: bool = False) -> int:
                 log(f"  WARN: recompute failed for {t}: {e}")
         conn.commit()
 
-    log(f"Recomputed {len(affected):,} ticker(s).")
+    log(f"Recomputed {len(affected):,} ticker(s) with events.")
     return len(affected)
 
 
