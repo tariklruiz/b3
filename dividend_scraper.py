@@ -275,28 +275,56 @@ def fetch_incremental_document_ids(
     """
     cutoff_date: 'YYYY-MM-DD' — fetch all docs with dataEntrega >= this date
     known_ids:   id_documentos already in DB — used to skip dupes
+
+    Date comparison is done on `datetime.date` objects, NOT strings — comparing
+    DD/MM/YYYY strings lexically gives the wrong answer across month boundaries
+    (e.g. "01/05/2026" < "30/04/2026" lexically, but May 1 is AFTER April 30).
     """
+    from datetime import date as _date
+
     log.info(f"Incremental mode — fetching docs with dataEntrega >= {cutoff_date}")
     new_docs: list = []
     offset = 0
     done = False
+    page_num = 1
 
-    # dataEntrega format: "17/04/2026 17:11" (DD/MM/YYYY HH:MM)
-    y, m, d = cutoff_date.split("-")
-    cutoff_entrega = f"{d}/{m}/{y}"  # "DD/MM/YYYY"
+    # cutoff comes in as 'YYYY-MM-DD' from the caller
+    cutoff = _date.fromisoformat(cutoff_date)
+
+    def parse_doc_date(doc: dict) -> _date | None:
+        """Pull dataEntrega ('DD/MM/YYYY HH:MM') and return as a date, or None."""
+        raw = (doc.get("dataEntrega") or "")[:10]
+        if len(raw) != 10:
+            return None
+        try:
+            d, m, y = raw.split("/")
+            return _date(int(y), int(m), int(d))
+        except (ValueError, IndexError):
+            return None
 
     data = fetch_grid_json(session, {**GRID_PARAMS, "s": 0, "l": PAGE_SIZE, "d": 1})
     total = data["recordsFiltered"]
     log.info(f"Total documents on B3: {total:,}")
 
+    page_new = 0
+    page_oldest = None
     for doc in data["data"]:
-        doc_date = (doc.get("dataEntrega") or "")[:10]  # "DD/MM/YYYY"
-        if doc_date < cutoff_entrega:
+        doc_date = parse_doc_date(doc)
+        if doc_date is None:
+            continue  # malformed row — skip without triggering cutoff
+        page_oldest = doc_date.strftime("%d/%m/%Y")
+        if doc_date < cutoff:
             done = True
             break
         if doc["id"] not in known_ids:
             new_docs.append(doc)
+            page_new += 1
+    log.info(
+        f"Page {page_num}: scanned {len(data['data'])} docs, "
+        f"{page_new} new (oldest in page: {page_oldest or 'n/a'})"
+    )
     offset += PAGE_SIZE
+    page_num += 1
 
     while not done and offset < total:
         # Hard cap on pagination depth — incremental runs typically need 1-3 pages.
@@ -309,26 +337,40 @@ def fetch_incremental_document_ids(
             )
             break
 
+        page_new = 0
+        page_oldest = None
+        page_count = 0
         try:
             data = fetch_grid_json(session, {
                 **GRID_PARAMS, "s": offset, "l": PAGE_SIZE,
                 "d": offset // PAGE_SIZE + 1,
             })
+            page_count = len(data["data"])
             for doc in data["data"]:
-                doc_date = (doc.get("dataEntrega") or "")[:10]
-                if doc_date < cutoff_entrega:
+                doc_date = parse_doc_date(doc)
+                if doc_date is None:
+                    continue
+                page_oldest = doc_date.strftime("%d/%m/%Y")
+                if doc_date < cutoff:
                     done = True
                     break
                 if doc["id"] not in known_ids:
                     new_docs.append(doc)
+                    page_new += 1
         except Exception as e:
             log.error(f"Failed page at offset {offset} — skipping: {e}")
+
+        log.info(
+            f"Page {page_num}: scanned {page_count} docs, "
+            f"{page_new} new (oldest in page: {page_oldest or 'n/a'})"
+        )
 
         if done:
             log.info(f"Reached cutoff date {cutoff_date} — stopping grid scan")
             break
 
         offset += PAGE_SIZE
+        page_num += 1
         jittered_sleep(REQUEST_DELAY)
 
     log.info(f"New documents to download: {len(new_docs):,}")
