@@ -65,7 +65,13 @@ MAX_RETRIES   = 1                  # reduced from 3 — repeated retries on a bl
 RETRY_DELAY   = 30
 REQUEST_DELAY = 8                  # base delay between calls; jitter is added on top
 JITTER_RANGE  = (4, 8)             # random extra seconds, sampled uniformly
-RETENTION_DAYS = 60
+
+# Discovery window: how far back we look for each fund's report history.
+# We need at least 13 months to reliably find the M-12 report (the one from
+# roughly a year before the latest). Set a bit wider for safety on funds with
+# irregular publication cadence.
+DISCOVERY_WINDOW_DAYS = 400        # ~13 months
+DISCOVERY_PAGE_SIZE   = 15         # max reports to fetch per fund
 
 RELATORIOS_PATH = Path(os.environ.get("RELATORIOS_PATH", "/mnt/volumes/relatorios"))
 
@@ -118,9 +124,9 @@ def clean_cnpj(raw: str | None) -> str | None:
     return digits or None
 
 
-def retention_cutoff_str() -> str:
-    """CVM grid expects dates as DD/MM/YYYY in the dataReferencia filter."""
-    cutoff = datetime.now() - timedelta(days=RETENTION_DAYS)
+def discovery_cutoff_str() -> str:
+    """CVM grid expects dates as DD/MM/YYYY in the dataInicial filter."""
+    cutoff = datetime.now() - timedelta(days=DISCOVERY_WINDOW_DAYS)
     return cutoff.strftime("%d/%m/%Y")
 
 
@@ -270,41 +276,23 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
 def scan_grid_for_cnpj(session: requests.Session, cnpj: str, ticker: str,
                        since_str: str, label: str) -> list[dict]:
     """
-    Fetch all relatório gerencial entries for a single CNPJ since the cutoff.
-    Returns the raw grid rows (typically 1-15 per fund for a 60-day window).
-    Per-CNPJ queries are small enough that we don't need to paginate in
-    practice, but we handle it defensively in case a fund publishes weekly.
+    Fetch the most-recent relatórios for a single CNPJ within the discovery
+    window. Returns the raw grid rows ordered by dataReferencia DESC. We cap
+    at DISCOVERY_PAGE_SIZE (15) — for monthly publishers that's >12 months
+    of history, plenty to find the M, M-1, and M-12 reports.
     """
-    docs: list[dict] = []
-    offset = 0
-    total = None
-
-    while True:
-        params = {
-            **_grid_params_cnpj(cnpj, since_str),
-            "s": offset,
-            "l": PAGE_SIZE,
-            "d": 1 if offset == 0 else 2,
-        }
-        try:
-            data = fetch_grid_json(session, params)
-        except Exception as e:
-            log.error(f"  [{label}] {ticker} ({cnpj}): grid fetch failed: {e}")
-            return docs
-
-        if total is None:
-            total = data.get("recordsTotal", 0)
-
-        page = data.get("data", [])
-        if not page:
-            break
-        docs.extend(page)
-        offset += PAGE_SIZE
-        if offset >= total:
-            break
-        jittered_sleep()
-
-    return docs
+    params = {
+        **_grid_params_cnpj(cnpj, since_str),
+        "s": 0,
+        "l": DISCOVERY_PAGE_SIZE,
+        "d": 1,
+    }
+    try:
+        data = fetch_grid_json(session, params)
+    except Exception as e:
+        log.error(f"  [{label}] {ticker} ({cnpj}): grid fetch failed: {e}")
+        return []
+    return data.get("data", [])
 
 
 def annotate_grid_rows(rows: list[dict], cnpj: str, ticker: str,
@@ -329,6 +317,65 @@ def annotate_grid_rows(rows: list[dict], cnpj: str, ticker: str,
             "nome_arquivo": r.get("nomePregao") or r.get("descricaoFundo"),
         })
     return out
+
+
+def select_target_reports(rows: list[dict], ticker: str) -> list[dict]:
+    """
+    From the list of relatórios for a single fund (within the discovery
+    window, ordered by dataReferencia desc), pick at most three:
+
+        - latest:  the most recent report
+        - m_minus_1: the report immediately before the latest, by data_referencia
+        - m_minus_12: the report whose data_referencia is closest (in days) to
+                      latest's data_referencia minus 12 months
+
+    Funds with very short publication history may yield only 1 or 2 picks.
+    Returns the picked rows in original grid format (caller annotates).
+
+    Logs the slot decisions so we can audit what got picked vs skipped.
+    """
+    parsed: list[tuple] = []  # (parsed_date, raw_row)
+    for r in rows:
+        d = parse_referencia(r.get("dataReferencia"))
+        if d is None:
+            continue
+        parsed.append((d, r))
+
+    if not parsed:
+        log.warning(f"  {ticker}: no parseable dataReferencia values in {len(rows)} rows")
+        return []
+
+    # Sort latest first
+    parsed.sort(key=lambda t: t[0], reverse=True)
+
+    picks: list[dict] = []
+    slot_log: list[str] = []
+
+    # Latest
+    latest_date, latest_row = parsed[0]
+    picks.append(latest_row)
+    slot_log.append(f"M={latest_date.strftime('%m/%Y')}")
+
+    # M-1: the report immediately before the latest
+    if len(parsed) >= 2:
+        m1_date, m1_row = parsed[1]
+        picks.append(m1_row)
+        slot_log.append(f"M-1={m1_date.strftime('%m/%Y')}")
+
+    # M-12: closest by day count to (latest - 12 months)
+    if len(parsed) >= 3:
+        from datetime import timedelta as _td
+        target = latest_date - _td(days=365)
+        # Search among entries that are NOT already picked
+        candidates = [(d, r) for (d, r) in parsed[2:]]
+        if candidates:
+            best = min(candidates, key=lambda t: abs((t[0] - target).days))
+            best_date, best_row = best
+            picks.append(best_row)
+            slot_log.append(f"M-12={best_date.strftime('%m/%Y')}")
+
+    log.info(f"  {ticker}: selected {len(picks)}/3 — {', '.join(slot_log)}")
+    return picks
 
 
 # ---------------------------------------------------------------------------
@@ -431,16 +478,17 @@ def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
     candidates: list[dict] = []
     total_funds = len(universe)
 
-    # Discovery phase: hit the grid once per CNPJ
+    # Discovery phase: hit the grid once per CNPJ, pick M/M-1/M-12 from results
     for idx, (cnpj, info) in enumerate(universe.items(), start=1):
         ticker = info["ticker"]
         rows = scan_grid_for_cnpj(session, cnpj, ticker, since_str, tipo_fundo)
-        new_for_fund = annotate_grid_rows(rows, cnpj, ticker, tipo_fundo, seen)
-        candidates.extend(new_for_fund)
         log.info(
             f"[{tipo_fundo}] ({idx}/{total_funds}) {ticker}: "
-            f"{len(rows)} docs in window, {len(new_for_fund)} new"
+            f"{len(rows)} docs in {DISCOVERY_WINDOW_DAYS}-day window"
         )
+        targets = select_target_reports(rows, ticker)
+        new_for_fund = annotate_grid_rows(targets, cnpj, ticker, tipo_fundo, seen)
+        candidates.extend(new_for_fund)
         jittered_sleep()
 
     log.info(f"[{tipo_fundo}] Discovery complete: {len(candidates)} new docs to download")
@@ -613,7 +661,7 @@ def main() -> int:
             log.error(f"--since must be DD/MM/YYYY or YYYY-MM-DD, got {s!r}")
             return 2
     else:
-        since_str = retention_cutoff_str()
+        since_str = discovery_cutoff_str()
 
     init_pool()
     try:
