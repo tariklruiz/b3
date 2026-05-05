@@ -51,7 +51,8 @@ from db import (
 API_BASE        = "https://fnet.bmfbovespa.com.br/fnet/publico"
 GRID_ENDPOINT   = f"{API_BASE}/pesquisarGerenciadorDocumentosDados"
 DL_ENDPOINT     = f"{API_BASE}/downloadDocumento"
-PAGE_SIZE       = 100
+PAGE_SIZE       = 25          # reduced from 100; smaller pages are faster for CVM and
+                              # less likely to trip read timeouts during heavy load
 MAX_RETRIES     = 5
 RETRY_DELAY     = 30          # increased from 15 to give CVM longer to cool down
 RETRY_BACKOFF   = 2.0
@@ -72,10 +73,17 @@ GRID_PARAMS = {
 }
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept":          "application/json, text/plain, */*",
-    "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection":      "keep-alive",
+    "Referer":         "https://fnet.bmfbovespa.com.br/fnet/publico/abrirGerenciadorDocumentosCVM",
+    "X-Requested-With": "XMLHttpRequest",
 }
 
 # ---------------------------------------------------------------------------
