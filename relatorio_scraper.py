@@ -60,9 +60,11 @@ GRID_ENDPOINT = f"{API_BASE}/pesquisarGerenciadorDocumentosDados"
 DL_ENDPOINT   = f"{API_BASE}/downloadDocumento"
 
 PAGE_SIZE     = 100
-MAX_RETRIES   = 3
+MAX_RETRIES   = 1                  # reduced from 3 — repeated retries on a blocked IP
+                                   # only reinforce the bot signature in Cloudflare's profile
 RETRY_DELAY   = 30
-REQUEST_DELAY = 1.5
+REQUEST_DELAY = 8                  # base delay between calls; jitter is added on top
+JITTER_RANGE  = (4, 8)             # random extra seconds, sampled uniformly
 RETENTION_DAYS = 60
 
 RELATORIOS_PATH = Path(os.environ.get("RELATORIOS_PATH", "/mnt/volumes/relatorios"))
@@ -165,6 +167,35 @@ def safe_ticker(ticker: str | None) -> str:
     if not ticker:
         return "_unknown"
     return re.sub(r"[^A-Za-z0-9_-]", "_", ticker)
+
+
+def jittered_sleep(base: float = REQUEST_DELAY) -> None:
+    """Sleep base + uniform random jitter. Used between every CVM hit."""
+    import random
+    extra = random.uniform(*JITTER_RANGE)
+    time.sleep(base + extra)
+
+
+def warm_up_session(session: requests.Session) -> bool:
+    """
+    Hit the public search-tool landing page first. This populates the session
+    with whatever cookies CVM/Cloudflare set on first visit (cf_clearance,
+    JSESSIONID, etc.) before we start querying the API. Mimics what a real
+    browser does when a user opens the search tool and then clicks Search.
+
+    Returns True if the warm-up completed without obvious blocks.
+    """
+    landing_url = "https://fnet.bmfbovespa.com.br/fnet/publico/abrirGerenciadorDocumentosCVM"
+    try:
+        resp = session.get(landing_url, timeout=30)
+        log.info(f"Warm-up: GET {landing_url} -> HTTP {resp.status_code}, "
+                 f"cookies set: {len(session.cookies)}")
+        # Real browser would now load assets, idle a bit, then hit the API
+        jittered_sleep(base=3)
+        return resp.status_code == 200
+    except Exception as e:
+        log.warning(f"Warm-up failed: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +302,7 @@ def scan_grid_for_cnpj(session: requests.Session, cnpj: str, ticker: str,
         offset += PAGE_SIZE
         if offset >= total:
             break
-        time.sleep(REQUEST_DELAY)
+        jittered_sleep()
 
     return docs
 
@@ -390,6 +421,12 @@ def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
     session = requests.Session()
     session.headers.update(BROWSER_HEADERS)
 
+    # Warm up the session against the public landing page before hitting the
+    # API. Cloudflare often issues a session cookie on first page load that
+    # subsequent API calls expect. Skipping this makes us look like a bot
+    # that jumped straight to the JSON endpoint.
+    warm_up_session(session)
+
     seen = existing_doc_ids()
     candidates: list[dict] = []
     total_funds = len(universe)
@@ -404,7 +441,7 @@ def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
             f"[{tipo_fundo}] ({idx}/{total_funds}) {ticker}: "
             f"{len(rows)} docs in window, {len(new_for_fund)} new"
         )
-        time.sleep(REQUEST_DELAY)
+        jittered_sleep()
 
     log.info(f"[{tipo_fundo}] Discovery complete: {len(candidates)} new docs to download")
 
@@ -432,7 +469,7 @@ def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
             ok = True
         else:
             ok = download_pdf(doc_id, dest, session)
-            time.sleep(REQUEST_DELAY)
+            jittered_sleep()
 
         if not ok:
             record_error(doc_id, "download failed")
