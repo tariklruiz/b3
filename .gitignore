@@ -1,3 +1,6 @@
-data/ 
-backend/data/*.db 
-*.db 
+data/
+backend/data/*.db
+*.db
+.env
+__pycache__/
+*.log
