@@ -7,14 +7,24 @@ Pipeline:
        relatório gerencial documents (idCategoriaDocumento=7, idTipoDocumento=9).
     3. Filter grid results to CNPJs in the universe.
     4. For each new doc (not already in relatorios_gerenciais), download the PDF
-       to /mnt/volumes/relatorios/{ticker}/{doc_id}.pdf and insert metadata.
+       to /mnt/volumes/relatorios/{ticker}/{doc_id}.pdf and insert metadata
+       with processed_at=NULL.
+    5. End-of-run cleanup: remove PDFs whose DB row has processed_at IS NOT NULL
+       but the file still exists (catches orphans from failed agent deletions).
+
+Lifecycle (option C — process-then-delete):
+    - Scraper writes PDFs to disk; agent reads, extracts, writes JSON to gestores,
+      marks processed_at=NOW(), then deletes the PDF.
+    - On any agent failure, processed_at stays NULL and the PDF remains for retry.
+    - This scraper's cleanup pass is belt-and-suspenders: handles the case where
+      the agent succeeded at marking processed_at but the file delete itself failed.
 
 Usage:
     python relatorio_scraper.py                  # full scrape (FII + FIAGRO)
     python relatorio_scraper.py --fii-only
     python relatorio_scraper.py --fiagro-only
     python relatorio_scraper.py --since 2026-01-01  # override retention cutoff
-    python relatorio_scraper.py --retry-errors      # retry docs that previously failed
+    python relatorio_scraper.py --cleanup-only      # skip scrape, only prune orphans
 
 Env:
     DATABASE_URL       required — Postgres connection string
@@ -195,12 +205,18 @@ def load_universe(tipo_fundo: str | None = None) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # CVM grid fetch
 # ---------------------------------------------------------------------------
-def _grid_params(tipo_fundo_id: int, cutoff_str: str) -> dict:
+def _grid_params_cnpj(cnpj: str, cutoff_str: str) -> dict:
+    """
+    Build query params for a per-CNPJ grid query. CVM accepts both `cnpj` and
+    `cnpjFundo` (sending both, mirroring CVM's own UI). When CNPJ is provided,
+    tipoFundo is not required — the CNPJ uniquely identifies the fund.
+    """
     return {
         **BASE_GRID_PARAMS,
-        "tipoFundo": tipo_fundo_id,
+        "cnpj":         cnpj,
+        "cnpjFundo":    cnpj,
         "o[0][dataReferencia]": "desc",
-        "dataInicial": cutoff_str,
+        "dataInicial":  cutoff_str,
     }
 
 
@@ -220,22 +236,21 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
     raise RuntimeError(f"grid fetch exhausted retries: {last_exc}")
 
 
-def scan_grid(tipo_fundo_id: int, label: str, since_str: str) -> list[dict]:
+def scan_grid_for_cnpj(session: requests.Session, cnpj: str, ticker: str,
+                       since_str: str, label: str) -> list[dict]:
     """
-    Page through the CVM grid for the given tipoFundo, collecting all
-    relatório gerencial entries since the cutoff. Returns raw grid rows.
+    Fetch all relatório gerencial entries for a single CNPJ since the cutoff.
+    Returns the raw grid rows (typically 1-15 per fund for a 60-day window).
+    Per-CNPJ queries are small enough that we don't need to paginate in
+    practice, but we handle it defensively in case a fund publishes weekly.
     """
-    log.info(f"[{label}] Scanning CVM grid since {since_str}...")
-    session = requests.Session()
-    session.headers.update(BROWSER_HEADERS)
-
     docs: list[dict] = []
     offset = 0
     total = None
 
     while True:
         params = {
-            **_grid_params(tipo_fundo_id, since_str),
+            **_grid_params_cnpj(cnpj, since_str),
             "s": offset,
             "l": PAGE_SIZE,
             "d": 1 if offset == 0 else 2,
@@ -243,12 +258,11 @@ def scan_grid(tipo_fundo_id: int, label: str, since_str: str) -> list[dict]:
         try:
             data = fetch_grid_json(session, params)
         except Exception as e:
-            log.error(f"[{label}] Grid fetch failed at offset {offset}: {e}")
-            break
+            log.error(f"  [{label}] {ticker} ({cnpj}): grid fetch failed: {e}")
+            return docs
 
         if total is None:
             total = data.get("recordsTotal", 0)
-            log.info(f"[{label}] {total:,} docs in grid")
 
         page = data.get("data", [])
         if not page:
@@ -259,48 +273,40 @@ def scan_grid(tipo_fundo_id: int, label: str, since_str: str) -> list[dict]:
             break
         time.sleep(REQUEST_DELAY)
 
-    log.info(f"[{label}] {len(docs):,} grid rows fetched")
     return docs
 
 
-# ---------------------------------------------------------------------------
-# Filtering & deduplication
-# ---------------------------------------------------------------------------
-def existing_doc_ids() -> set[int]:
-    """Return all doc_ids already in relatorios_gerenciais."""
-    rows = query_all("SELECT doc_id FROM relatorios_gerenciais")
-    return {int(r["doc_id"]) for r in rows}
-
-
-def filter_universe(rows: list[dict], universe: dict[str, dict],
-                    seen_doc_ids: set[int]) -> list[dict]:
-    """
-    Keep grid rows whose CNPJ is in the universe and whose doc_id is new.
-    Annotates each kept row with ticker and tipo_fundo from the universe.
-    """
-    kept = []
+def annotate_grid_rows(rows: list[dict], cnpj: str, ticker: str,
+                       tipo_fundo: str, seen_doc_ids: set[int]) -> list[dict]:
+    """Convert raw grid rows into the dict shape process_pass expects."""
+    out = []
     for r in rows:
-        cnpj = clean_cnpj(r.get("cnpjFundo") or r.get("cnpj"))
-        if not cnpj or cnpj not in universe:
-            continue
         try:
             doc_id = int(r.get("id"))
         except (TypeError, ValueError):
             continue
         if doc_id in seen_doc_ids:
             continue
-        info = universe[cnpj]
-        kept.append({
+        out.append({
             "doc_id": doc_id,
             "cnpj_fundo": cnpj,
-            "ticker": info["ticker"],
-            "tipo_fundo": info["tipo_fundo"],
+            "ticker": ticker,
+            "tipo_fundo": tipo_fundo,
             "data_referencia_raw": r.get("dataReferencia"),
             "data_entrega_raw": r.get("dataEntrega"),
-            "versao": r.get("versao") or r.get("versaoDocumento"),
-            "nome_arquivo": r.get("nomeArquivo") or r.get("descricaoTipoDocumento"),
+            "versao": r.get("versao"),
+            "nome_arquivo": r.get("nomePregao") or r.get("descricaoFundo"),
         })
-    return kept
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Deduplication
+# ---------------------------------------------------------------------------
+def existing_doc_ids() -> set[int]:
+    """Return all doc_ids already in relatorios_gerenciais."""
+    rows = query_all("SELECT doc_id FROM relatorios_gerenciais")
+    return {int(r["doc_id"]) for r in rows}
 
 
 # ---------------------------------------------------------------------------
@@ -368,36 +374,61 @@ def record_error(doc_id: int, msg: str) -> None:
 # Main pass
 # ---------------------------------------------------------------------------
 def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
-    """Run a single FII or FIAGRO pass: scan grid, filter, download new PDFs."""
+    """
+    Run a single FII or FIAGRO pass: for each CNPJ in the universe, query the
+    CVM grid filtered to that CNPJ, then download any new docs. tipo_fundo_id
+    is unused (kept for backward CLI compatibility); CVM identifies the fund
+    uniquely from the CNPJ.
+    """
     universe = load_universe(tipo_fundo=tipo_fundo)
     if not universe:
         log.warning(f"[{tipo_fundo}] No universe rows -- skipping. Did you run build_universe.py?")
-        return {"label": tipo_fundo, "fetched_grid": 0, "new_docs": 0, "downloaded": 0, "errors": 0}
+        return {"label": tipo_fundo, "scanned": 0, "new_docs": 0, "downloaded": 0, "errors": 0}
 
-    log.info(f"[{tipo_fundo}] Universe: {len(universe)} CNPJs")
-    grid_rows = scan_grid(tipo_fundo_id, tipo_fundo, since_str)
-
-    seen = existing_doc_ids()
-    candidates = filter_universe(grid_rows, universe, seen)
-    log.info(f"[{tipo_fundo}] {len(candidates)} new docs to fetch")
-
-    if not candidates:
-        return {"label": tipo_fundo, "fetched_grid": len(grid_rows), "new_docs": 0,
-                "downloaded": 0, "errors": 0}
+    log.info(f"[{tipo_fundo}] Universe: {len(universe)} CNPJs -- scanning per fund since {since_str}")
 
     session = requests.Session()
     session.headers.update(BROWSER_HEADERS)
 
+    seen = existing_doc_ids()
+    candidates: list[dict] = []
+    total_funds = len(universe)
+
+    # Discovery phase: hit the grid once per CNPJ
+    for idx, (cnpj, info) in enumerate(universe.items(), start=1):
+        ticker = info["ticker"]
+        rows = scan_grid_for_cnpj(session, cnpj, ticker, since_str, tipo_fundo)
+        new_for_fund = annotate_grid_rows(rows, cnpj, ticker, tipo_fundo, seen)
+        candidates.extend(new_for_fund)
+        log.info(
+            f"[{tipo_fundo}] ({idx}/{total_funds}) {ticker}: "
+            f"{len(rows)} docs in window, {len(new_for_fund)} new"
+        )
+        time.sleep(REQUEST_DELAY)
+
+    log.info(f"[{tipo_fundo}] Discovery complete: {len(candidates)} new docs to download")
+
+    if not candidates:
+        return {"label": tipo_fundo, "scanned": total_funds, "new_docs": 0,
+                "downloaded": 0, "errors": 0}
+
+    # Download phase
     downloaded = 0
     errors = 0
+    total_to_fetch = len(candidates)
 
-    for doc in candidates:
+    for idx, doc in enumerate(candidates, start=1):
         doc_id = doc["doc_id"]
         ticker_safe = safe_ticker(doc["ticker"])
         dest = RELATORIOS_PATH / ticker_safe / f"{doc_id}.pdf"
 
+        log.info(
+            f"[{tipo_fundo}] download ({idx}/{total_to_fetch}) {doc['ticker']} "
+            f"doc {doc_id} ({doc.get('data_referencia_raw') or 'n/d'})"
+        )
+
         if dest.exists():
-            log.info(f"  {doc_id} already on disk at {dest}, indexing only")
+            log.info(f"  already on disk at {dest}, indexing only")
             ok = True
         else:
             ok = download_pdf(doc_id, dest, session)
@@ -440,36 +471,81 @@ def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
             errors += 1
 
     log.info(f"[{tipo_fundo}] downloaded={downloaded} errors={errors}")
-    return {"label": tipo_fundo, "fetched_grid": len(grid_rows),
+    return {"label": tipo_fundo, "scanned": total_funds,
             "new_docs": len(candidates), "downloaded": downloaded, "errors": errors}
 
 
 # ---------------------------------------------------------------------------
-# Retry-errors mode
+# Cleanup: prune PDFs whose agent processing succeeded
 # ---------------------------------------------------------------------------
-def retry_errors() -> dict:
-    """Re-attempt downloads for doc_ids logged in erros where origem='relatorio_scraper'."""
+def prune_processed_pdfs() -> dict:
+    """
+    Belt-and-suspenders cleanup. The agent is supposed to delete PDFs after
+    successful extraction and mark pdf_deleted_at. This function catches the
+    case where processed_at was set but the file delete failed (or was never
+    attempted). Idempotent — safe to run on every scraper invocation.
+
+    Only deletes when:
+      - processed_at IS NOT NULL (agent finished successfully)
+      - pdf_deleted_at IS NULL   (we haven't already marked it deleted)
+
+    Files in the universe that haven't been processed yet are left alone, so
+    this never destroys data the agent still needs.
+    """
     rows = query_all(
         """
-        SELECT DISTINCT e.doc_id
-        FROM erros e
-        WHERE e.origem = 'relatorio_scraper'
-          AND e.doc_id IS NOT NULL
-          AND NOT EXISTS (
-              SELECT 1 FROM relatorios_gerenciais r WHERE r.doc_id = e.doc_id
-          )
+        SELECT doc_id, ticker, pdf_path
+        FROM relatorios_gerenciais
+        WHERE processed_at IS NOT NULL
+          AND pdf_deleted_at IS NULL
         """
     )
     if not rows:
-        log.info("No outstanding errors to retry")
-        return {"retried": 0, "downloaded": 0}
+        log.info("Cleanup: no PDFs to prune")
+        return {"checked": 0, "deleted": 0, "missing": 0, "errors": 0}
 
-    log.info(f"Retrying {len(rows)} previously-failed doc_ids")
-    # We don't have grid metadata for these, so we can only re-download — but we
-    # need ticker info for the path. Look it up via universe + dividendos lookup.
-    # Simplest approach: skip retries that we can't resolve a ticker for.
-    log.warning("Retry mode: skipping — implement when needed (need ticker resolution)")
-    return {"retried": len(rows), "downloaded": 0}
+    log.info(f"Cleanup: {len(rows)} processed PDFs flagged for removal")
+    deleted = 0
+    missing = 0
+    errors = 0
+
+    for r in rows:
+        path = Path(r["pdf_path"])
+        try:
+            if path.exists():
+                path.unlink()
+                deleted += 1
+            else:
+                # Already gone from disk (manual cleanup, volume reset, etc).
+                # We still want to mark pdf_deleted_at so we stop re-checking it.
+                missing += 1
+            execute(
+                """
+                UPDATE relatorios_gerenciais
+                SET pdf_deleted_at = NOW()
+                WHERE doc_id = %s
+                """,
+                (r["doc_id"],),
+            )
+        except Exception as e:
+            log.warning(f"Cleanup: failed to remove {path}: {e}")
+            errors += 1
+
+    # Try to remove now-empty ticker directories
+    if RELATORIOS_PATH.exists():
+        for ticker_dir in RELATORIOS_PATH.iterdir():
+            if ticker_dir.is_dir():
+                try:
+                    next(ticker_dir.iterdir())
+                except StopIteration:
+                    # Empty directory — safe to remove
+                    try:
+                        ticker_dir.rmdir()
+                    except OSError:
+                        pass
+
+    log.info(f"Cleanup: deleted={deleted} missing_on_disk={missing} errors={errors}")
+    return {"checked": len(rows), "deleted": deleted, "missing": missing, "errors": errors}
 
 
 # ---------------------------------------------------------------------------
@@ -480,8 +556,10 @@ def main() -> int:
     parser.add_argument("--fii-only", action="store_true")
     parser.add_argument("--fiagro-only", action="store_true")
     parser.add_argument("--since", help="Override retention cutoff (DD/MM/YYYY or YYYY-MM-DD)")
-    parser.add_argument("--retry-errors", action="store_true",
-                        help="Re-attempt previously-failed doc_ids")
+    parser.add_argument("--cleanup-only", action="store_true",
+                        help="Skip scrape; only prune PDFs the agent has already processed")
+    parser.add_argument("--no-cleanup", action="store_true",
+                        help="Skip the end-of-run cleanup pass (for debugging)")
     args = parser.parse_args()
 
     if args.fii_only and args.fiagro_only:
@@ -502,8 +580,8 @@ def main() -> int:
 
     init_pool()
     try:
-        if args.retry_errors:
-            retry_errors()
+        if args.cleanup_only:
+            prune_processed_pdfs()
             return 0
 
         if not args.fiagro_only:
@@ -511,6 +589,9 @@ def main() -> int:
             time.sleep(120)  # cooldown between passes (matches informe scraper pattern)
         if not args.fii_only:
             process_pass("FIAGRO", tipo_fundo_id=11, since_str=since_str)
+
+        if not args.no_cleanup:
+            prune_processed_pdfs()
     finally:
         close_pool()
 
