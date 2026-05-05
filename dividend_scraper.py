@@ -165,7 +165,14 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
         return resp.json()
     except ValueError as e:
         body = (resp.text or "").strip()
-        preview = body[:300].replace("\n", " ")
+        preview = body[:500].replace("\n", " ")
+        # Log first so Railway captures the diagnostic even if a later handler
+        # only logs the chained JSONDecodeError.
+        log.error(
+            f"CVM returned non-JSON: status={resp.status_code} "
+            f"content-type={resp.headers.get('Content-Type', 'unknown')!r} "
+            f"body_len={len(body)} preview={preview!r}"
+        )
         raise RuntimeError(
             f"CVM returned non-JSON: status={resp.status_code} "
             f"content-type={resp.headers.get('Content-Type', 'unknown')} "
