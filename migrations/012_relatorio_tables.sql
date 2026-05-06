@@ -37,7 +37,12 @@ CREATE TABLE IF NOT EXISTS relatorios_gerenciais (
     pdf_path        TEXT NOT NULL,              -- /mnt/volumes/relatorios/{ticker}/{doc_id}.pdf
     file_size_bytes BIGINT,
     sha256          TEXT,                       -- for integrity checks and dedup
-    downloaded_at   TIMESTAMP NOT NULL DEFAULT NOW()
+    downloaded_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    processed_at    TIMESTAMP NULL,             -- set by agent on successful extraction;
+                                                -- NULL means the PDF is pending processing
+    pdf_deleted_at  TIMESTAMP NULL              -- set when the PDF file is removed from disk;
+                                                -- decoupled from processed_at so we can audit
+                                                -- when cleanup happened separately from extraction
 );
 
 -- Prevent duplicate versions of the same monthly report
@@ -52,6 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_rel_ticker_data_desc
 
 CREATE INDEX IF NOT EXISTS idx_rel_data
     ON relatorios_gerenciais(data_referencia DESC);
+
+-- Agent queries this index to find unprocessed PDFs efficiently
+CREATE INDEX IF NOT EXISTS idx_rel_pending
+    ON relatorios_gerenciais(downloaded_at) WHERE processed_at IS NULL;
 
 COMMENT ON TABLE relatorio_universe IS
     'Top-50 FII + top-10 FIAGRO by 30-day trade count. Refreshed monthly by build_universe.py.';
