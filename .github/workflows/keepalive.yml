@@ -1,0 +1,24 @@
+name: keepalive
+
+# Keeps the Railway FastAPI container warm by hitting a cheap endpoint every
+# 5 minutes. Without this, the container goes idle after ~10-15 min and the
+# next user request pays a 3-15s cold start. Cron + curl is a cheap way to
+# avoid that without paying for an always-on plan.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 minutes
+  workflow_dispatch:        # also runnable manually from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hit /benchmarks
+        run: |
+          curl --fail --silent --show-error \
+               --max-time 30 \
+               -w "ttfb:%{time_starttransfer}s total:%{time_total}s status:%{http_code}\n" \
+               -o /dev/null \
+               https://fii-prices.up.railway.app/benchmarks
