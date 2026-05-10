@@ -451,113 +451,142 @@ def record_error(doc_id: int, msg: str) -> None:
 # ---------------------------------------------------------------------------
 # Main pass
 # ---------------------------------------------------------------------------
+def _save_doc(doc: dict, session: requests.Session, label: str) -> tuple[bool, bool]:
+    """
+    Download one doc's PDF and insert metadata. Returns (downloaded_ok, errored).
+    Used by process_pass to keep the per-fund loop body small.
+    """
+    doc_id = doc["doc_id"]
+    ticker_safe = safe_ticker(doc["ticker"])
+    dest = RELATORIOS_PATH / ticker_safe / f"{doc_id}.pdf"
+
+    log.info(
+        f"[{label}]     download {doc['ticker']} "
+        f"doc {doc_id} ({doc.get('data_referencia_raw') or 'n/d'})"
+    )
+
+    if dest.exists():
+        log.info(f"  already on disk at {dest}, indexing only")
+        ok = True
+    else:
+        ok = download_pdf(doc_id, dest, session)
+        jittered_sleep()
+
+    if not ok:
+        record_error(doc_id, "download failed")
+        return False, True
+
+    try:
+        file_size = dest.stat().st_size
+        file_hash = sha256_of(dest)
+        execute(
+            """
+            INSERT INTO relatorios_gerenciais
+                (doc_id, cnpj_fundo, ticker, tipo_fundo, data_referencia,
+                 data_entrega, versao, nome_arquivo, pdf_path, file_size_bytes, sha256)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (doc_id) DO NOTHING
+            """,
+            (
+                doc_id,
+                doc["cnpj_fundo"],
+                doc["ticker"],
+                doc["tipo_fundo"],
+                parse_referencia(doc["data_referencia_raw"]),
+                parse_grid_date(doc["data_entrega_raw"]),
+                int(doc["versao"]) if doc["versao"] not in (None, "") else None,
+                doc["nome_arquivo"],
+                str(dest),
+                file_size,
+                file_hash,
+            ),
+        )
+        return True, False
+    except Exception as e:
+        log.error(f"  {doc_id} downloaded but DB insert failed: {e}")
+        record_error(doc_id, f"db insert failed: {e}")
+        return False, True
+
+
 def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
     """
-    Run a single FII or FIAGRO pass: for each CNPJ in the universe, query the
-    CVM grid filtered to that CNPJ, then download any new docs. tipo_fundo_id
-    is unused (kept for backward CLI compatibility); CVM identifies the fund
-    uniquely from the CNPJ.
+    Run a single FII or FIAGRO pass with INTERLEAVED discovery and download.
+
+    For each fund:
+      1. Query CVM grid for that fund's recent relatórios (discovery)
+      2. Pick M/M-1/M-12 from results (selection)
+      3. Download those 3 PDFs immediately (download + insert)
+      4. Move to next fund
+
+    Why interleave instead of discover-all-then-download-all:
+      - Resilience: a Cloudflare 403 mid-run loses one fund's progress, not
+        the entire universe's discovery work.
+      - Less bot-like: a real user searches one fund, downloads its files,
+        searches the next. Bulk-list-then-bulk-download is a scraper signature.
+      - Visibility: each fund's progress is logged completely before moving on,
+        so logs are easier to read and partial state is auditable.
+
+    tipo_fundo_id is unused (kept for CLI compat); CNPJ uniquely identifies the fund.
     """
     universe = load_universe(tipo_fundo=tipo_fundo)
     if not universe:
         log.warning(f"[{tipo_fundo}] No universe rows -- skipping. Did you run build_universe.py?")
         return {"label": tipo_fundo, "scanned": 0, "new_docs": 0, "downloaded": 0, "errors": 0}
 
-    log.info(f"[{tipo_fundo}] Universe: {len(universe)} CNPJs -- scanning per fund since {since_str}")
+    log.info(f"[{tipo_fundo}] Universe: {len(universe)} CNPJs -- per-fund discover+download since {since_str}")
 
     session = requests.Session()
     session.headers.update(BROWSER_HEADERS)
 
-    # Warm up the session against the public landing page before hitting the
-    # API. Cloudflare often issues a session cookie on first page load that
-    # subsequent API calls expect. Skipping this makes us look like a bot
-    # that jumped straight to the JSON endpoint.
+    # Warm up against the public landing page once per pass to populate
+    # Cloudflare's session cookies before any API call.
     warm_up_session(session)
 
     seen = existing_doc_ids()
-    candidates: list[dict] = []
     total_funds = len(universe)
 
-    # Discovery phase: hit the grid once per CNPJ, pick M/M-1/M-12 from results
+    new_docs_total = 0
+    downloaded = 0
+    errors = 0
+
     for idx, (cnpj, info) in enumerate(universe.items(), start=1):
         ticker = info["ticker"]
+
+        # 1. Discovery: ask CVM for this fund's recent relatórios
         rows = scan_grid_for_cnpj(session, cnpj, ticker, since_str, tipo_fundo)
         log.info(
             f"[{tipo_fundo}] ({idx}/{total_funds}) {ticker}: "
             f"{len(rows)} docs in {DISCOVERY_WINDOW_DAYS}-day window"
         )
-        targets = select_target_reports(rows, ticker)
-        new_for_fund = annotate_grid_rows(targets, cnpj, ticker, tipo_fundo, seen)
-        candidates.extend(new_for_fund)
+
+        # Pause between the grid call and the downloads, mimicking a user
+        # reading the search results before clicking download.
         jittered_sleep()
 
-    log.info(f"[{tipo_fundo}] Discovery complete: {len(candidates)} new docs to download")
+        # 2. Selection: pick M/M-1/M-12 from results
+        targets = select_target_reports(rows, ticker)
+        new_for_fund = annotate_grid_rows(targets, cnpj, ticker, tipo_fundo, seen)
 
-    if not candidates:
-        return {"label": tipo_fundo, "scanned": total_funds, "new_docs": 0,
-                "downloaded": 0, "errors": 0}
-
-    # Download phase
-    downloaded = 0
-    errors = 0
-    total_to_fetch = len(candidates)
-
-    for idx, doc in enumerate(candidates, start=1):
-        doc_id = doc["doc_id"]
-        ticker_safe = safe_ticker(doc["ticker"])
-        dest = RELATORIOS_PATH / ticker_safe / f"{doc_id}.pdf"
-
-        log.info(
-            f"[{tipo_fundo}] download ({idx}/{total_to_fetch}) {doc['ticker']} "
-            f"doc {doc_id} ({doc.get('data_referencia_raw') or 'n/d'})"
-        )
-
-        if dest.exists():
-            log.info(f"  already on disk at {dest}, indexing only")
-            ok = True
-        else:
-            ok = download_pdf(doc_id, dest, session)
-            jittered_sleep()
-
-        if not ok:
-            record_error(doc_id, "download failed")
-            errors += 1
+        if not new_for_fund:
+            log.info(f"[{tipo_fundo}]   nothing new for {ticker} (already in DB or 0 docs found)")
             continue
 
-        try:
-            file_size = dest.stat().st_size
-            file_hash = sha256_of(dest)
-            execute(
-                """
-                INSERT INTO relatorios_gerenciais
-                    (doc_id, cnpj_fundo, ticker, tipo_fundo, data_referencia,
-                     data_entrega, versao, nome_arquivo, pdf_path, file_size_bytes, sha256)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (doc_id) DO NOTHING
-                """,
-                (
-                    doc_id,
-                    doc["cnpj_fundo"],
-                    doc["ticker"],
-                    doc["tipo_fundo"],
-                    parse_referencia(doc["data_referencia_raw"]),
-                    parse_grid_date(doc["data_entrega_raw"]),
-                    int(doc["versao"]) if doc["versao"] not in (None, "") else None,
-                    doc["nome_arquivo"],
-                    str(dest),
-                    file_size,
-                    file_hash,
-                ),
-            )
-            downloaded += 1
-        except Exception as e:
-            log.error(f"  {doc_id} downloaded but DB insert failed: {e}")
-            record_error(doc_id, f"db insert failed: {e}")
-            errors += 1
+        new_docs_total += len(new_for_fund)
 
-    log.info(f"[{tipo_fundo}] downloaded={downloaded} errors={errors}")
+        # 3. Download immediately, fund-by-fund
+        for doc in new_for_fund:
+            ok, err = _save_doc(doc, session, tipo_fundo)
+            if ok:
+                downloaded += 1
+                # Mark seen so a later retry of the same pass doesn't re-download
+                seen.add(doc["doc_id"])
+            if err:
+                errors += 1
+
+    log.info(f"[{tipo_fundo}] complete: scanned={total_funds} new={new_docs_total} "
+             f"downloaded={downloaded} errors={errors}")
     return {"label": tipo_fundo, "scanned": total_funds,
-            "new_docs": len(candidates), "downloaded": downloaded, "errors": errors}
+            "new_docs": new_docs_total, "downloaded": downloaded, "errors": errors}
 
 
 # ---------------------------------------------------------------------------
