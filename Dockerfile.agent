@@ -1,0 +1,30 @@
+# Dockerfile.agent
+# ============================================================================
+# FII Guia — LLM extraction agent.
+# Reads pending relatórios from the DB, preprocesses PDFs from the volume,
+# calls Claude API, writes JSON output to gestores. Runs on demand or via
+# scheduled cron (after the relatório scraper has fetched fresh PDFs).
+#
+# Mounts the same volume as relatorio-scraper so it can read the PDFs.
+# Same env vars as the FastAPI service plus ANTHROPIC_API_KEY.
+# ============================================================================
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements-agent.txt .
+RUN pip install --no-cache-dir -r requirements-agent.txt
+
+COPY db.py .
+COPY pdf_preprocessor.py .
+COPY agent.py .
+COPY prompts/ ./prompts/
+
+# Default command runs the full FII Papel sweep. Override at deploy time
+# (e.g., '--ticker MXRF11 --limit 1') for one-shot invocations.
+CMD ["python", "agent.py", "--subtype", "fii_papel"]
