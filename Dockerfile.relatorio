@@ -1,10 +1,23 @@
 # Dockerfile.relatorio
 # ============================================================================
-# FII Guia — Relatório Gerencial scraper.
-# Scheduled service: queries relatorio_universe, scans the CVM fnet grid
-# (idCategoriaDocumento=7, idTipoDocumento=9), downloads new PDFs to the
-# Railway volume mounted at /mnt/volumes/relatorios, and indexes metadata
-# into relatorios_gerenciais.
+# FII Guia — Combined relatório scraper + LLM extraction agent.
+#
+# Single container handles both phases of the relatório pipeline:
+#   - Scrape phase:    relatorio_scraper.py downloads PDFs from CVM into the
+#                      mounted volume, indexes metadata in relatorios_gerenciais.
+#   - Extract phase:   agent.py reads PDFs from the same volume, calls Claude
+#                      to extract structured data into the gestores table,
+#                      then deletes processed PDFs.
+#
+# We combine these into one service because Railway's hobby plan attaches a
+# volume to one service. Both phases need filesystem access to the PDFs, so
+# they live together. They run on separate cron schedules — scraper first,
+# agent a few days later when the universe of pending PDFs is settled.
+#
+# Triggering:
+#   - Default CMD runs the scraper (preserves existing behavior).
+#   - For the agent, override the start command at deploy time:
+#       python agent.py --subtype fii_papel
 # ============================================================================
 
 FROM python:3.11-slim
@@ -18,9 +31,16 @@ WORKDIR /app
 COPY requirements-scraper-relatorio.txt .
 RUN pip install --no-cache-dir -r requirements-scraper-relatorio.txt
 
+# Shared modules
 COPY db.py .
+
+# Scraper code
 COPY relatorio_scraper.py .
 
-# Volume mount target: configure RELATORIOS_PATH env var on Railway to match
-# (defaults to /mnt/volumes/relatorios if unset).
+# Agent code (lives alongside the scraper in this combined image)
+COPY pdf_preprocessor.py .
+COPY agent.py .
+COPY prompts/ ./prompts/
+
+# Default command: run the scraper. Override to run the agent at deploy time.
 CMD ["python", "relatorio_scraper.py"]
