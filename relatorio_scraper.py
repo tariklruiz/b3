@@ -242,25 +242,19 @@ def load_universe(tipo_fundo: str | None = None) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # CVM grid fetch
 # ---------------------------------------------------------------------------
-def _grid_params_cnpj(cnpj: str, cutoff_str: str | None) -> dict:
+def _grid_params_bulk(tipo_fundo_id: int, cutoff_str: str) -> dict:
     """
-    Build query params for a per-CNPJ grid query. We deliberately keep this
-    minimal — only `cnpjFundo`, ordering, and the document-type filters.
-
-    Rationale:
-      - `cnpj` (alongside cnpjFundo) was redundant; we drop it.
-      - `dataInicial=DD/MM/YYYY` is a date filter most human UI users don't
-        apply. Programmatic date filtering may pattern-match a scraper
-        signature on Cloudflare's WAF; we omit it. Selection of M/M-1/M-12
-        happens client-side over the first page anyway.
-      - Page size 20 matches one of CVM's DataTables default options.
-
-    cutoff_str is accepted for backward compatibility but ignored.
+    Build query params for a bulk grid query — same pattern as the informe
+    and dividend scrapers (which work from Railway). No per-CNPJ filter,
+    just tipoFundo. We send dataInicial here because the bulk pattern is
+    the WAF's preferred (it's what their other scrapers do successfully),
+    and the bulk scan would be far too long without a date cap.
     """
     return {
         **BASE_GRID_PARAMS,
-        "cnpjFundo":    cnpj,
-        "o[0][dataReferencia]": "desc",
+        "tipoFundo":             tipo_fundo_id,
+        "o[0][dataReferencia]":  "desc",
+        "dataInicial":           cutoff_str,
     }
 
 
@@ -280,29 +274,114 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
     raise RuntimeError(f"grid fetch exhausted retries: {last_exc}")
 
 
-def scan_grid_for_cnpj(session: requests.Session, cnpj: str, ticker: str,
-                       since_str: str, label: str) -> list[dict]:
+def load_fund_listing_index() -> dict[str, dict]:
     """
-    Fetch the most-recent 25 relatórios for a single CNPJ. We do NOT filter
-    by date — CVM's UI typically doesn't either, and the date filter may be
-    a scraper signature on Cloudflare's WAF. Returns raw grid rows ordered
-    by dataReferencia DESC. For monthly-publishing funds, 25 rows is >24
-    months of history, plenty to find M, M-1, and M-12.
+    Build an in-memory lookup from grid identifier to ticker, used to match
+    bulk-scan rows back to our universe.
 
-    `since_str` is kept in the signature for API stability but is ignored.
+    Returns:
+        {nome_pregao_normalized: {ticker, codigo, tipo_fundo}, ...}
+
+    The key is uppercase normalized nomePregao (e.g., 'FII MAXI REN'). Bulk
+    grid rows can be matched directly. We also fall back to descricaoFundo
+    in match_row_to_listing if nomePregao is empty.
     """
-    params = {
-        **_grid_params_cnpj(cnpj, since_str),
-        "s": 0,
-        "l": DISCOVERY_PAGE_SIZE,
-        "d": 1,
-    }
-    try:
-        data = fetch_grid_json(session, params)
-    except Exception as e:
-        log.error(f"  [{label}] {ticker} ({cnpj}): grid fetch failed: {e}")
-        return []
-    return data.get("data", [])
+    rows = query_all(
+        "SELECT codigo, ticker, fundo, razao_social, tipo_fundo FROM fund_listing"
+    )
+    index: dict[str, dict] = {}
+    razao_index: dict[str, dict] = {}
+    for r in rows:
+        entry = {
+            "ticker":      r["ticker"],
+            "codigo":      r["codigo"],
+            "tipo_fundo":  r["tipo_fundo"],
+            "razao":       r["razao_social"],
+        }
+        if r["fundo"]:
+            index[r["fundo"].strip().upper()] = entry
+        if r["razao_social"]:
+            razao_index[r["razao_social"].strip().upper()] = entry
+    # Stash the razao index on a dunder key so match_row_to_listing can reach
+    # it without changing call-site signatures. Cleaner than a global.
+    index["__razao_index__"] = razao_index
+    return index
+
+
+def match_row_to_listing(row: dict, listing: dict[str, dict]) -> dict | None:
+    """
+    Resolve a CVM grid row to a fund_listing entry. Tries:
+      1. nomePregao exact match (uppercase, stripped)
+      2. descricaoFundo exact match against razao_social
+
+    Returns the listing entry (with ticker, codigo, tipo_fundo, razao) or
+    None if no match. Most rows match on step 1; the fallback handles the
+    occasional empty-nomePregao case we saw in CVM's data.
+    """
+    nome_pregao = (row.get("nomePregao") or "").strip().upper()
+    if nome_pregao:
+        hit = listing.get(nome_pregao)
+        if hit:
+            return hit
+
+    razao_index = listing.get("__razao_index__") or {}
+    descricao = (row.get("descricaoFundo") or "").strip().upper()
+    if descricao:
+        hit = razao_index.get(descricao)
+        if hit:
+            return hit
+
+    return None
+
+
+def bulk_scan_grid(session: requests.Session, tipo_fundo_id: int, label: str,
+                   since_str: str) -> list[dict]:
+    """
+    Paginate the bulk grid for a given tipoFundo (1=FII, 11=FIAGRO). Same
+    pattern as informe_mensal_scraper and dividend_scraper, both of which
+    work from Railway's IPs.
+
+    Logs per-page progress so a slow scan doesn't look like a hang.
+    """
+    log.info(f"[{label}] Bulk scan since {since_str}...")
+    docs: list[dict] = []
+    offset = 0
+    total = None
+    page_num = 1
+
+    while True:
+        params = {
+            **_grid_params_bulk(tipo_fundo_id, since_str),
+            "s": offset,
+            "l": PAGE_SIZE,
+            "d": 1 if offset == 0 else 2,
+        }
+        try:
+            data = fetch_grid_json(session, params)
+        except Exception as e:
+            log.error(f"[{label}] Bulk grid fetch failed at offset {offset}: {e}")
+            break
+
+        if total is None:
+            total = data.get("recordsTotal", 0)
+            log.info(f"[{label}] {total:,} docs in bulk grid")
+
+        page = data.get("data", [])
+        if not page:
+            break
+        docs.extend(page)
+        log.info(
+            f"[{label}] Page {page_num}: fetched {len(page)} rows "
+            f"(running total: {len(docs):,} / {total:,})"
+        )
+        offset += PAGE_SIZE
+        page_num += 1
+        if offset >= total:
+            break
+        jittered_sleep()
+
+    log.info(f"[{label}] Bulk scan done: {len(docs):,} rows fetched")
+    return docs
 
 
 def annotate_grid_rows(rows: list[dict], cnpj: str, ticker: str,
@@ -520,83 +599,116 @@ def _save_doc(doc: dict, session: requests.Session, label: str) -> tuple[bool, b
 
 def process_pass(tipo_fundo: str, tipo_fundo_id: int, since_str: str) -> dict:
     """
-    Run a single FII or FIAGRO pass with INTERLEAVED discovery and download.
+    Run a single FII or FIAGRO pass using BULK-MODE discovery, then per-fund
+    download. Same query pattern as informe_mensal_scraper / dividend_scraper,
+    which Cloudflare lets through from Railway. The per-CNPJ pattern is
+    blocked from Railway as of May 2026.
 
-    For each fund:
-      1. Query CVM grid for that fund's recent relatórios (discovery)
-      2. Pick M/M-1/M-12 from results (selection)
-      3. Download those 3 PDFs immediately (download + insert)
-      4. Move to next fund
+    Flow:
+      1. Warm up the session against the landing page (cookies).
+      2. Paginate the full grid for this tipoFundo, since the cutoff date.
+      3. Match each row to our universe via fund_listing (nomePregao
+         primary, descricaoFundo fallback).
+      4. Group matched rows by ticker. For each ticker, pick M/M-1/M-12.
+      5. Download those PDFs per fund, interleaved so a mid-run failure
+         loses at most one fund's progress.
 
-    Why interleave instead of discover-all-then-download-all:
-      - Resilience: a Cloudflare 403 mid-run loses one fund's progress, not
-        the entire universe's discovery work.
-      - Less bot-like: a real user searches one fund, downloads its files,
-        searches the next. Bulk-list-then-bulk-download is a scraper signature.
-      - Visibility: each fund's progress is logged completely before moving on,
-        so logs are easier to read and partial state is auditable.
-
-    tipo_fundo_id is unused (kept for CLI compat); CNPJ uniquely identifies the fund.
+    tipo_fundo_id is the CVM filter (1=FII, 11=FIAGRO).
     """
     universe = load_universe(tipo_fundo=tipo_fundo)
     if not universe:
         log.warning(f"[{tipo_fundo}] No universe rows -- skipping. Did you run build_universe.py?")
-        return {"label": tipo_fundo, "scanned": 0, "new_docs": 0, "downloaded": 0, "errors": 0}
+        return {"label": tipo_fundo, "scanned": 0, "matched_rows": 0,
+                "new_docs": 0, "downloaded": 0, "errors": 0}
 
-    log.info(f"[{tipo_fundo}] Universe: {len(universe)} CNPJs -- per-fund discover+download since {since_str}")
+    # Universe set for fast filtering of grid rows against tickers we care about
+    universe_tickers = {info["ticker"] for info in universe.values()}
+    universe_by_ticker = {info["ticker"]: {"cnpj": cnpj, **info}
+                          for cnpj, info in universe.items()}
+
+    listing = load_fund_listing_index()
+    if len(listing) <= 1:  # only the __razao_index__ stub
+        log.error(f"[{tipo_fundo}] fund_listing is empty. Run load_fund_listing.py first.")
+        return {"label": tipo_fundo, "scanned": 0, "matched_rows": 0,
+                "new_docs": 0, "downloaded": 0, "errors": 0}
+
+    log.info(f"[{tipo_fundo}] Universe: {len(universe)} tickers -- bulk scan + selection")
 
     session = requests.Session()
     session.headers.update(BROWSER_HEADERS)
-
-    # Warm up against the public landing page once per pass to populate
-    # Cloudflare's session cookies before any API call.
     warm_up_session(session)
 
+    # 1. Bulk discovery
+    all_rows = bulk_scan_grid(session, tipo_fundo_id, tipo_fundo, since_str)
+    if not all_rows:
+        return {"label": tipo_fundo, "scanned": len(universe), "matched_rows": 0,
+                "new_docs": 0, "downloaded": 0, "errors": 0}
+
+    # 2. Filter to universe via fund_listing, group by ticker
     seen = existing_doc_ids()
-    total_funds = len(universe)
+    by_ticker: dict[str, list[dict]] = {}
+    unmatched_count = 0
+    out_of_universe_count = 0
+
+    for row in all_rows:
+        entry = match_row_to_listing(row, listing)
+        if entry is None:
+            unmatched_count += 1
+            continue
+        ticker = entry["ticker"]
+        if ticker not in universe_tickers:
+            out_of_universe_count += 1
+            continue
+        by_ticker.setdefault(ticker, []).append(row)
+
+    log.info(
+        f"[{tipo_fundo}] Bulk filter: {len(by_ticker)} universe tickers matched, "
+        f"{out_of_universe_count} out-of-universe rows dropped, "
+        f"{unmatched_count} unmatched rows (not in fund_listing)"
+    )
+
+    if not by_ticker:
+        return {"label": tipo_fundo, "scanned": len(universe),
+                "matched_rows": 0, "new_docs": 0, "downloaded": 0, "errors": 0}
 
     new_docs_total = 0
     downloaded = 0
     errors = 0
 
-    for idx, (cnpj, info) in enumerate(universe.items(), start=1):
-        ticker = info["ticker"]
+    # 3. Per-ticker selection + download
+    for idx, ticker in enumerate(sorted(by_ticker), start=1):
+        rows = by_ticker[ticker]
+        info = universe_by_ticker[ticker]
+        cnpj = info["cnpj"]
 
-        # 1. Discovery: ask CVM for this fund's recent relatórios
-        rows = scan_grid_for_cnpj(session, cnpj, ticker, since_str, tipo_fundo)
-        log.info(
-            f"[{tipo_fundo}] ({idx}/{total_funds}) {ticker}: "
-            f"{len(rows)} docs in {DISCOVERY_WINDOW_DAYS}-day window"
-        )
+        log.info(f"[{tipo_fundo}] ({idx}/{len(by_ticker)}) {ticker}: "
+                 f"{len(rows)} docs in window")
 
-        # Pause between the grid call and the downloads, mimicking a user
-        # reading the search results before clicking download.
-        jittered_sleep()
-
-        # 2. Selection: pick M/M-1/M-12 from results
+        # Selection: M/M-1/M-12
         targets = select_target_reports(rows, ticker)
         new_for_fund = annotate_grid_rows(targets, cnpj, ticker, tipo_fundo, seen)
 
         if not new_for_fund:
-            log.info(f"[{tipo_fundo}]   nothing new for {ticker} (already in DB or 0 docs found)")
+            log.info(f"[{tipo_fundo}]   nothing new for {ticker} (already in DB)")
             continue
 
         new_docs_total += len(new_for_fund)
 
-        # 3. Download immediately, fund-by-fund
+        # Download immediately, fund-by-fund
         for doc in new_for_fund:
             ok, err = _save_doc(doc, session, tipo_fundo)
             if ok:
                 downloaded += 1
-                # Mark seen so a later retry of the same pass doesn't re-download
                 seen.add(doc["doc_id"])
             if err:
                 errors += 1
 
-    log.info(f"[{tipo_fundo}] complete: scanned={total_funds} new={new_docs_total} "
-             f"downloaded={downloaded} errors={errors}")
-    return {"label": tipo_fundo, "scanned": total_funds,
-            "new_docs": new_docs_total, "downloaded": downloaded, "errors": errors}
+    log.info(f"[{tipo_fundo}] complete: matched_tickers={len(by_ticker)} "
+             f"new={new_docs_total} downloaded={downloaded} errors={errors}")
+    return {"label": tipo_fundo, "scanned": len(universe),
+            "matched_rows": sum(len(v) for v in by_ticker.values()),
+            "new_docs": new_docs_total,
+            "downloaded": downloaded, "errors": errors}
 
 
 # ---------------------------------------------------------------------------
