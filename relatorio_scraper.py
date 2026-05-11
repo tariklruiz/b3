@@ -71,7 +71,7 @@ JITTER_RANGE  = (4, 8)             # random extra seconds, sampled uniformly
 # roughly a year before the latest). Set a bit wider for safety on funds with
 # irregular publication cadence.
 DISCOVERY_WINDOW_DAYS = 400        # ~13 months
-DISCOVERY_PAGE_SIZE   = 15         # max reports to fetch per fund
+DISCOVERY_PAGE_SIZE   = 25         # matches CVM's DataTables UI default
 
 RELATORIOS_PATH = Path(os.environ.get("RELATORIOS_PATH", "/mnt/volumes/relatorios"))
 
@@ -242,18 +242,25 @@ def load_universe(tipo_fundo: str | None = None) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # CVM grid fetch
 # ---------------------------------------------------------------------------
-def _grid_params_cnpj(cnpj: str, cutoff_str: str) -> dict:
+def _grid_params_cnpj(cnpj: str, cutoff_str: str | None) -> dict:
     """
-    Build query params for a per-CNPJ grid query. CVM's UI sends `cnpjFundo`;
-    the legacy `cnpj` param is accepted but redundant. We drop it because
-    sending both pairs may pattern-match a "scraper" signature on Cloudflare's
-    WAF.
+    Build query params for a per-CNPJ grid query. We deliberately keep this
+    minimal — only `cnpjFundo`, ordering, and the document-type filters.
+
+    Rationale:
+      - `cnpj` (alongside cnpjFundo) was redundant; we drop it.
+      - `dataInicial=DD/MM/YYYY` is a date filter most human UI users don't
+        apply. Programmatic date filtering may pattern-match a scraper
+        signature on Cloudflare's WAF; we omit it. Selection of M/M-1/M-12
+        happens client-side over the first page anyway.
+      - Page size 20 matches one of CVM's DataTables default options.
+
+    cutoff_str is accepted for backward compatibility but ignored.
     """
     return {
         **BASE_GRID_PARAMS,
         "cnpjFundo":    cnpj,
         "o[0][dataReferencia]": "desc",
-        "dataInicial":  cutoff_str,
     }
 
 
@@ -276,10 +283,13 @@ def fetch_grid_json(session: requests.Session, params: dict) -> dict:
 def scan_grid_for_cnpj(session: requests.Session, cnpj: str, ticker: str,
                        since_str: str, label: str) -> list[dict]:
     """
-    Fetch the most-recent relatórios for a single CNPJ within the discovery
-    window. Returns the raw grid rows ordered by dataReferencia DESC. We cap
-    at DISCOVERY_PAGE_SIZE (15) — for monthly publishers that's >12 months
-    of history, plenty to find the M, M-1, and M-12 reports.
+    Fetch the most-recent 25 relatórios for a single CNPJ. We do NOT filter
+    by date — CVM's UI typically doesn't either, and the date filter may be
+    a scraper signature on Cloudflare's WAF. Returns raw grid rows ordered
+    by dataReferencia DESC. For monthly-publishing funds, 25 rows is >24
+    months of history, plenty to find M, M-1, and M-12.
+
+    `since_str` is kept in the signature for API stability but is ignored.
     """
     params = {
         **_grid_params_cnpj(cnpj, since_str),
