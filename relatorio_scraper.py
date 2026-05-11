@@ -244,13 +244,13 @@ def load_universe(tipo_fundo: str | None = None) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 def _grid_params_cnpj(cnpj: str, cutoff_str: str) -> dict:
     """
-    Build query params for a per-CNPJ grid query. CVM accepts both `cnpj` and
-    `cnpjFundo` (sending both, mirroring CVM's own UI). When CNPJ is provided,
-    tipoFundo is not required — the CNPJ uniquely identifies the fund.
+    Build query params for a per-CNPJ grid query. CVM's UI sends `cnpjFundo`;
+    the legacy `cnpj` param is accepted but redundant. We drop it because
+    sending both pairs may pattern-match a "scraper" signature on Cloudflare's
+    WAF.
     """
     return {
         **BASE_GRID_PARAMS,
-        "cnpj":         cnpj,
         "cnpjFundo":    cnpj,
         "o[0][dataReferencia]": "desc",
         "dataInicial":  cutoff_str,
