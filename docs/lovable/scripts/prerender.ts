@@ -32,6 +32,7 @@ const LOCAL_BASE = `http://localhost:${PORT}`;
 const CONCURRENCY = 5;
 const WAIT_TIMEOUT_MS = 20_000;
 const FAIL_ON_ERROR = process.env.FAIL_ON_ERROR === "1";
+const BUILD_BYPASS_TOKEN = process.env.BUILD_BYPASS_TOKEN || "";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -104,6 +105,9 @@ async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
   try {
     page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 900 });
+    if (BUILD_BYPASS_TOKEN) {
+      await page.setExtraHTTPHeaders({ "x-build-token": BUILD_BYPASS_TOKEN });
+    }
     // Block heavy resources we don't need for HTML snapshots
     await page.setRequestInterception(true);
     page.on("request", req => {
@@ -151,6 +155,13 @@ async function runBatch<T>(items: T[], size: number, fn: (item: T) => Promise<vo
 async function main(): Promise<void> {
   if (!existsSync(SITEMAP_PATH)) {
     throw new Error(`Sitemap not found at ${SITEMAP_PATH}. Run sitemap generator first.`);
+  }
+  if (!BUILD_BYPASS_TOKEN) {
+    console.warn(
+      "WARNING: BUILD_BYPASS_TOKEN env var is not set. Pre-rendering will hit\n" +
+      "         API rate limits and most pages will likely fail. Set the env var\n" +
+      "         to the token configured on Railway and retry."
+    );
   }
   const urls = readSitemapUrls();
   console.log(`Pre-rendering ${urls.length} fund pages...`);

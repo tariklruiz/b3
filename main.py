@@ -60,7 +60,27 @@ async def lifespan(app: FastAPI):
 # App setup
 # ---------------------------------------------------------------------------
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+BUILD_BYPASS_TOKEN = os.environ.get("BUILD_BYPASS_TOKEN")
+
+
+def rate_limit_key(request: Request) -> str | None:
+    """slowapi key function.
+
+    Returns None for trusted build requests (skips rate limiting entirely).
+    Otherwise falls back to the client IP, the default behaviour.
+
+    Build requests are identified by an X-Build-Token header matching the
+    BUILD_BYPASS_TOKEN environment variable. The token is set on Railway and
+    on the Cloudflare Pages build environment.
+    """
+    if BUILD_BYPASS_TOKEN:
+        token = request.headers.get("x-build-token")
+        if token and token == BUILD_BYPASS_TOKEN:
+            return None
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=rate_limit_key, default_limits=["60/minute"])
 
 app = FastAPI(
     title="Guia FII API",
