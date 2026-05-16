@@ -159,7 +159,7 @@ export default function FundPage() {
         className={`relative max-w-[920px] mx-auto px-4 sm:px-5 py-8 pb-20 transition-all duration-300 ${loading ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}
       >
         {fund && (
-          <div className="flex flex-col gap-5">
+          <div data-fund-loaded="true" className="flex flex-col gap-5">
             <div className="animate-fade-in" style={{ animationDelay: '0ms' }}>
               <FundHeader fund={fund} />
             </div>
