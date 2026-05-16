@@ -2099,7 +2099,7 @@
 
 </div>
 
-<!-- React mount point for /#/fundo/:ticker -->
+<!-- React mount point for /fundo/:ticker -->
 <div id="root"></div>
 
 <script>
@@ -2107,7 +2107,7 @@
   function goToFund(ticker) {
     const t = (ticker || '').trim().toUpperCase();
     if (!t) return;
-    window.location.href = '/#/fundo/' + encodeURIComponent(t);
+    window.location.href = '/fundo/' + encodeURIComponent(t);
   }
 
   document.querySelectorAll('.search-input-el').forEach(input => {
