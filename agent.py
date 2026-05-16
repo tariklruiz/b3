@@ -47,6 +47,7 @@ import logging
 import os
 import re
 import sys
+import time
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
@@ -84,6 +85,14 @@ PRICE_CACHE_READ_PER_TOKEN  = 0.30 / 1_000_000
 BUDGET_TOTAL = float(os.environ.get("MONTHLY_BUDGET_USD", "30"))
 BUDGET_WARN  = float(os.environ.get("MONTHLY_BUDGET_WARN_USD", "20"))
 BUDGET_STOP  = float(os.environ.get("MONTHLY_BUDGET_STOP_USD", "25"))
+
+# Pacing between funds to stay under Anthropic's per-minute rate limit. On
+# entry tier (~30k input TPM on Sonnet), a single fund's extraction uses
+# 12-15k tokens — two funds in <60s trips the limit. 70 seconds gives enough
+# headroom for the per-minute window to roll over before the next call. When
+# the account auto-tiers up (Tier 2 ~50k+ TPM, Tier 3 100k+), this delay can
+# be reduced via env var or removed entirely.
+INTER_FUND_DELAY_S = int(os.environ.get("INTER_FUND_DELAY_S", "70"))
 
 PROMPTS_DIR = Path(os.environ.get("PROMPTS_DIR", "prompts"))
 
@@ -641,7 +650,8 @@ def main() -> int:
         client = anthropic.Anthropic() if not args.dry_run else None
 
         results = []
-        for ticker, docs in worklist.items():
+        tickers_list = list(worklist.items())
+        for idx, (ticker, docs) in enumerate(tickers_list):
             # Re-check budget before each fund
             if not args.dry_run:
                 try:
@@ -660,6 +670,12 @@ def main() -> int:
                 dry_run=args.dry_run,
             )
             results.append(result)
+
+            # Pace between funds to stay under per-minute token rate limit.
+            # Skip pacing after the last fund and during dry-run.
+            if not args.dry_run and idx < len(tickers_list) - 1 and INTER_FUND_DELAY_S > 0:
+                log.info(f"Sleeping {INTER_FUND_DELAY_S}s before next fund (rate limit)")
+                time.sleep(INTER_FUND_DELAY_S)
 
         # Summary
         by_status: dict[str, int] = defaultdict(int)
