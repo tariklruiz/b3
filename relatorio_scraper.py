@@ -399,36 +399,57 @@ def existing_doc_ids() -> set[int]:
 # Download
 # ---------------------------------------------------------------------------
 def download_pdf(doc_id: int, dest_path: Path, session: requests.Session) -> bool:
-    """Stream the PDF to dest_path. Returns True on success."""
+    """
+    Download a relatório PDF from CVM and write to dest_path.
+
+    CVM's downloadDocumento endpoint advertises Content-Type: application/pdf
+    but actually returns one of two shapes:
+      1. A real PDF (raw bytes starting with %PDF)
+      2. A JSON string containing base64-encoded PDF bytes (starts with `"` and
+         a base64 prefix like `JVBERi` which decodes to `%PDF-1.x`)
+
+    Empirically, relatórios gerenciais return shape (2). We sniff the first
+    bytes to detect and decode if needed.
+
+    Returns True on success.
+    """
     url = f"{DL_ENDPOINT}?id={doc_id}"
     last_exc = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resp = session.get(url, timeout=120, stream=True)
+            resp = session.get(url, timeout=120)
             if resp.status_code != 200:
                 raise RuntimeError(f"HTTP {resp.status_code}")
 
-            ct = resp.headers.get("Content-Type", "").lower()
-            if "pdf" not in ct and "octet-stream" not in ct:
-                # CVM occasionally serves HTML error pages with 200; sniff first bytes
-                first = next(resp.iter_content(chunk_size=8), b"")
-                if not first.startswith(b"%PDF"):
-                    raise RuntimeError(f"not a PDF (Content-Type={ct!r}, head={first!r})")
-                # Stream rest after the sniff
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-                with dest_path.open("wb") as f:
-                    f.write(first)
-                    for chunk in resp.iter_content(chunk_size=65536):
-                        if chunk:
-                            f.write(chunk)
-                return True
+            body = resp.content
+            if not body:
+                raise RuntimeError("empty response body")
+
+            # Detect shape from the first bytes.
+            if body.startswith(b"%PDF"):
+                # Shape 1: real PDF, write as-is.
+                pdf_bytes = body
+            elif body.startswith(b'"') and len(body) > 16 and body[1:8] in (b"JVBERi0", b"JVBERi1"):
+                # Shape 2: JSON-string-wrapped base64. Strip surrounding quotes
+                # (and any trailing newline) and base64-decode.
+                import base64
+                inner = body.strip().strip(b'"')
+                try:
+                    pdf_bytes = base64.b64decode(inner, validate=False)
+                except Exception as e:
+                    raise RuntimeError(f"base64 decode failed: {e}")
+                if not pdf_bytes.startswith(b"%PDF"):
+                    raise RuntimeError(f"decoded payload is not a PDF (head={pdf_bytes[:8]!r})")
+            else:
+                head = body[:32]
+                ct = resp.headers.get("Content-Type", "")
+                raise RuntimeError(f"unknown response shape (Content-Type={ct!r}, head={head!r})")
 
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             with dest_path.open("wb") as f:
-                for chunk in resp.iter_content(chunk_size=65536):
-                    if chunk:
-                        f.write(chunk)
+                f.write(pdf_bytes)
             return True
+
         except Exception as e:
             last_exc = e
             if attempt < MAX_RETRIES:
