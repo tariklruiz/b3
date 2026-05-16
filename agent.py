@@ -87,12 +87,14 @@ BUDGET_WARN  = float(os.environ.get("MONTHLY_BUDGET_WARN_USD", "20"))
 BUDGET_STOP  = float(os.environ.get("MONTHLY_BUDGET_STOP_USD", "25"))
 
 # Pacing between funds to stay under Anthropic's per-minute rate limit. On
-# entry tier (~30k input TPM on Sonnet), a single fund's extraction uses
-# 12-15k tokens — two funds in <60s trips the limit. 70 seconds gives enough
-# headroom for the per-minute window to roll over before the next call. When
-# the account auto-tiers up (Tier 2 ~50k+ TPM, Tier 3 100k+), this delay can
-# be reduced via env var or removed entirely.
-INTER_FUND_DELAY_S = int(os.environ.get("INTER_FUND_DELAY_S", "70"))
+# entry tier (30k input TPM on Sonnet), a single fund's extraction uses
+# 15-21k tokens. Even 70s wasn't enough: empirically, the rolling-window
+# counter seems to use request-start (not response-end) timestamps, so a
+# fund finishing at T can still have its tokens counted toward the window
+# at T+70. 120s gives comfortable headroom. When the account auto-tiers
+# up (Tier 2 50k+ TPM, Tier 3 100k+), this delay can be reduced via env
+# var or removed entirely.
+INTER_FUND_DELAY_S = int(os.environ.get("INTER_FUND_DELAY_S", "120"))
 
 PROMPTS_DIR = Path(os.environ.get("PROMPTS_DIR", "prompts"))
 
@@ -647,7 +649,11 @@ def main() -> int:
             log.info(f"Limited to {args.limit}: {tickers}")
 
         # Initialize the API client (one shared instance reuses HTTP connection)
-        client = anthropic.Anthropic() if not args.dry_run else None
+        # max_retries=5 lets the SDK weather a TPM rate-limit hit that
+        # exceeds a single 60s rolling window. Combined with the inter-fund
+        # sleep below, the run survives bursts cleanly even on the entry
+        # tier (30k input TPM on Sonnet).
+        client = anthropic.Anthropic(max_retries=5) if not args.dry_run else None
 
         results = []
         tickers_list = list(worklist.items())
