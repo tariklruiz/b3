@@ -81,7 +81,6 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:8080",
     ],
-    allow_origin_regex=r"https://.*\.app\.github\.dev",
     allow_credentials=False,
     allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
@@ -271,6 +270,36 @@ def get_tickers(request: Request, search: str = Query(None)):
             "FROM cotahist ORDER BY cod_neg"
         )
     return {"count": len(rows), "tickers": [dict(r) for r in rows]}
+
+
+@app.get("/fiis")
+@limiter.limit("20/minute")
+def get_fiis(request: Request):
+    """List every FII and FIAGRO known to the platform.
+
+    Sources from fund_listing, which is loaded from B3's official
+    "Fundos Listados" CSVs (FII and FIAGRO). Returns one entry per
+    ticker in traded format (e.g. MXRF11), suitable for sitemap
+    generation and FII-scoped listings.
+    """
+    rows = query_all(
+        "SELECT ticker, codigo, razao_social, fundo, tipo_fundo "
+        "FROM fund_listing "
+        "WHERE ticker IS NOT NULL "
+        "ORDER BY ticker"
+    )
+    tickers = [
+        {
+            "ticker": r["ticker"],
+            "codigo": r["codigo"],
+            "name": r["fundo"] or r["razao_social"],
+            "type": r["tipo_fundo"],
+        }
+        for r in rows
+    ]
+    return {"count": len(tickers), "tickers": tickers}
+
+
 
 
 @app.get("/dates/all")
