@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -32,7 +33,11 @@ function mount() {
   const el = document.getElementById("root");
   if (el && !el.dataset.mounted) {
     el.dataset.mounted = "1";
-    createRoot(el).render(<App />);
+    createRoot(el).render(
+      <HelmetProvider>
+        <App />
+      </HelmetProvider>
+    );
   }
 }
 

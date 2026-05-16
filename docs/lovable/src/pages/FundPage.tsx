@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { Sun, Moon } from 'lucide-react'
 import { SearchBar } from '@/components/SearchBar'
 import { FundHeader } from '@/components/FundHeader'
@@ -64,7 +65,6 @@ export default function FundPage() {
 
       const f = buildFundData(ticker, preco, div, informe, benchData, cdiData, gestorData)
       setFund(f)
-      document.title = `${ticker} — FII Guia`
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -84,8 +84,41 @@ export default function FundPage() {
     if (tickerParam) loadFund(tickerParam)
   }, [tickerParam, loadFund])
 
+  // Build SEO copy. When fund data is loaded, use the rich version with
+  // classification. Otherwise fall back to a minimal ticker-only title so the
+  // tab and shared links still show something meaningful.
+  const seoTicker = (fund?.ticker || tickerParam || '').toUpperCase()
+  const seoClassificacao = fund?.classificacao || ''
+  const seoTitle = seoTicker
+    ? `${seoTicker} — Análise, Dividendos e Indicadores | Guia FII`
+    : 'Análise de FIIs | Guia FII'
+  const seoDescription = seoClassificacao
+    ? `Análise completa do FII ${seoTicker} (${seoClassificacao}): dividend yield, P/VP, histórico de proventos, volatilidade e resumo do relatório de gestão.`
+    : `Análise completa do FII ${seoTicker}: dividend yield, P/VP, histórico de proventos, volatilidade e resumo do relatório de gestão.`
+  const seoUrl = `https://fiiguia.com.br/fundo/${seoTicker}`
+
   return (
     <div className="min-h-screen bg-background transition-colors duration-300">
+      {/* Per-page SEO meta tags. Helmet replaces tags injected by index.html
+          so each fund URL has unique title/description/canonical/OG tags. */}
+      {seoTicker && (
+        <Helmet>
+          <title>{seoTitle}</title>
+          <meta name="description" content={seoDescription} />
+          <link rel="canonical" href={seoUrl} />
+          <meta property="og:title" content={`${seoTicker} — Guia FII`} />
+          <meta property="og:description" content={seoDescription} />
+          <meta property="og:url" content={seoUrl} />
+          <meta property="og:type" content="website" />
+          <meta property="og:locale" content="pt_BR" />
+          <meta property="og:image" content="https://fiiguia.com.br/logo_e_tipo_escuro.png" />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={`${seoTicker} — Guia FII`} />
+          <meta name="twitter:description" content={seoDescription} />
+          <meta name="twitter:image" content="https://fiiguia.com.br/logo_e_tipo_escuro.png" />
+        </Helmet>
+      )}
+
       {/* Header — matches the homepage */}
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/90 backdrop-blur-xl">
         <div className="max-w-[1200px] mx-auto flex items-center justify-between px-5 sm:px-10 h-16">
