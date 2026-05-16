@@ -21,12 +21,11 @@ import "./index.css";
   else root.classList.remove("dark");
 })();
 
-// Only mount React when we're on a hash route (fund page).
-// Homepage at "/" is pure static HTML — mounting React would render NotFound
-// invisibly and log a 404 to the console.
+// Only mount React when we're on a fund route. Homepage at "/" is pure static
+// HTML — mounting React there would render NotFound invisibly and log a 404
+// to the console.
 function shouldMountApp() {
-  const hash = window.location.hash || "";
-  return /^#\/\w/.test(hash);
+  return window.location.pathname.startsWith("/fundo/");
 }
 
 function mount() {
@@ -41,8 +40,9 @@ if (shouldMountApp()) {
   mount();
 }
 
-window.addEventListener("hashchange", () => {
+// BrowserRouter uses History API navigation (pushState / popstate), not hash
+// changes. Listen for popstate so React mounts when the user navigates via
+// back/forward buttons.
+window.addEventListener("popstate", () => {
   if (shouldMountApp()) mount();
 });
-
-
