@@ -320,7 +320,7 @@ def get_fiis(
             "FROM fund_listing fl "
             "INNER JOIN dividendos d ON d.ticker = fl.ticker "
             "WHERE fl.ticker IS NOT NULL "
-            "AND d.data_base >= (CURRENT_DATE - (%s || ' months')::interval) "
+            "AND d.data_base >= (CURRENT_DATE - make_interval(months => %s)) "
             "ORDER BY fl.ticker",
             (min_dividend_months,),
         )
