@@ -105,15 +105,18 @@ async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
   try {
     page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 900 });
-    if (BUILD_BYPASS_TOKEN) {
-      await page.setExtraHTTPHeaders({ "x-build-token": BUILD_BYPASS_TOKEN });
-    }
-    // Block heavy resources we don't need for HTML snapshots
+    // Single interception handler: blocks heavy resources AND injects the
+    // build token header only for API requests (not for fonts, images, etc).
     await page.setRequestInterception(true);
     page.on("request", req => {
       const type = req.resourceType();
       if (type === "image" || type === "media" || type === "font") {
         req.abort();
+        return;
+      }
+      const url = req.url();
+      if (BUILD_BYPASS_TOKEN && url.includes("fii-prices.up.railway.app")) {
+        req.continue({ headers: { ...req.headers(), "x-build-token": BUILD_BYPASS_TOKEN } });
       } else {
         req.continue();
       }
