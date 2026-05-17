@@ -30,7 +30,8 @@ const SITE_URL = "https://fiiguia.com.br";
 const PORT = 4173;
 const LOCAL_BASE = `http://localhost:${PORT}`;
 const CONCURRENCY = 5;
-const WAIT_TIMEOUT_MS = 20_000;
+const WAIT_TIMEOUT_MS = 45_000;
+const MAX_RETRIES = 1;
 const FAIL_ON_ERROR = process.env.FAIL_ON_ERROR === "1";
 
 // CLI flag: --limit N processes only the first N URLs. Useful for testing.
@@ -101,8 +102,7 @@ function readSitemapUrls(): string[] {
     .filter(url => url.startsWith(`${SITE_URL}/fundo/`));
 }
 
-async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
-  const startedAt = Date.now();
+async function prerenderAttempt(browser: Browser, fullUrl: string): Promise<void> {
   const localUrl = fullUrl.replace(SITE_URL, LOCAL_BASE);
   const ticker = fullUrl.split("/").pop()!;
   const outDir = join(DIST_DIR, "fundo", ticker);
@@ -112,8 +112,6 @@ async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
   try {
     page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 900 });
-    // Single interception handler: blocks heavy resources AND injects the
-    // build token header only for API requests (not for fonts, images, etc).
     await page.setRequestInterception(true);
     page.on("request", req => {
       const type = req.resourceType();
@@ -130,18 +128,46 @@ async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
     });
 
     await page.goto(localUrl, { waitUntil: "domcontentloaded", timeout: WAIT_TIMEOUT_MS });
-    // Wait for the marker placed in FundPage.tsx when fund data has loaded
     await page.waitForSelector("[data-fund-loaded]", { timeout: WAIT_TIMEOUT_MS });
 
     const html = await page.evaluate(() => "<!DOCTYPE html>" + document.documentElement.outerHTML);
-
     mkdirSync(outDir, { recursive: true });
     writeFileSync(outPath, html, "utf-8");
-    const elapsedMs = Date.now() - startedAt;
-    console.log(`  ✓ ${ticker} (${(elapsedMs/1000).toFixed(1)}s)`);
   } finally {
     if (page) await page.close().catch(() => undefined);
   }
+}
+
+type Counter = { remaining: number };
+
+const COLOR_RESET = "\x1b[0m";
+const COLOR_GREEN = "\x1b[32m";
+const COLOR_RED = "\x1b[31m";
+const COLOR_DIM = "\x1b[2m";
+
+async function prerenderOne(browser: Browser, fullUrl: string, counter: Counter): Promise<void> {
+  const startedAt = Date.now();
+  const ticker = fullUrl.split("/").pop()!;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await prerenderAttempt(browser, fullUrl);
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      counter.remaining -= 1;
+      const retryNote = attempt > 0 ? " (retry)" : "";
+      console.log(`  ${ticker} (${elapsedSec}s) - ${COLOR_GREEN}OK${COLOR_RESET}${retryNote} - ${COLOR_DIM}${counter.remaining} left${COLOR_RESET}`);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_RETRIES) {
+        console.log(`  ${COLOR_DIM}${ticker} timed out, retrying...${COLOR_RESET}`);
+      }
+    }
+  }
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+  counter.remaining -= 1;
+  console.log(`  ${ticker} (${elapsedSec}s) - ${COLOR_RED}NOK${COLOR_RESET} - ${COLOR_DIM}${counter.remaining} left${COLOR_RESET}`);
+  throw lastErr;
 }
 
 async function runBatch<T>(items: T[], size: number, fn: (item: T) => Promise<void>): Promise<{ ok: number; failed: string[] }> {
@@ -158,9 +184,7 @@ async function runBatch<T>(items: T[], size: number, fn: (item: T) => Promise<vo
         failed.push(`${item} :: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
       }
     });
-    process.stdout.write(`  Progress: ${Math.min(i + size, items.length)}/${items.length}\r`);
   }
-  process.stdout.write("\n");
   return { ok, failed };
 }
 
@@ -193,7 +217,8 @@ async function main(): Promise<void> {
 
   const runStartedAt = Date.now();
   try {
-    const { ok, failed } = await runBatch(urls, CONCURRENCY, url => prerenderOne(browser, url));
+    const counter: Counter = { remaining: urls.length };
+    const { ok, failed } = await runBatch(urls, CONCURRENCY, url => prerenderOne(browser, url, counter));
     const totalSec = ((Date.now() - runStartedAt) / 1000).toFixed(1);
     const avgSec = urls.length > 0 ? (Number(totalSec) / urls.length).toFixed(2) : "0";
     console.log(`\nPre-rendered: ${ok} / ${urls.length} in ${totalSec}s (avg ${avgSec}s/page)`);
