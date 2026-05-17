@@ -32,6 +32,12 @@ const LOCAL_BASE = `http://localhost:${PORT}`;
 const CONCURRENCY = 5;
 const WAIT_TIMEOUT_MS = 20_000;
 const FAIL_ON_ERROR = process.env.FAIL_ON_ERROR === "1";
+
+// CLI flag: --limit N processes only the first N URLs. Useful for testing.
+const LIMIT_FLAG_INDEX = process.argv.indexOf("--limit");
+const LIMIT = LIMIT_FLAG_INDEX !== -1 && process.argv[LIMIT_FLAG_INDEX + 1]
+  ? parseInt(process.argv[LIMIT_FLAG_INDEX + 1], 10)
+  : 0;
 const BUILD_BYPASS_TOKEN = process.env.BUILD_BYPASS_TOKEN || "";
 
 const MIME_TYPES: Record<string, string> = {
@@ -96,6 +102,7 @@ function readSitemapUrls(): string[] {
 }
 
 async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
+  const startedAt = Date.now();
   const localUrl = fullUrl.replace(SITE_URL, LOCAL_BASE);
   const ticker = fullUrl.split("/").pop()!;
   const outDir = join(DIST_DIR, "fundo", ticker);
@@ -130,6 +137,8 @@ async function prerenderOne(browser: Browser, fullUrl: string): Promise<void> {
 
     mkdirSync(outDir, { recursive: true });
     writeFileSync(outPath, html, "utf-8");
+    const elapsedMs = Date.now() - startedAt;
+    console.log(`  ✓ ${ticker} (${(elapsedMs/1000).toFixed(1)}s)`);
   } finally {
     if (page) await page.close().catch(() => undefined);
   }
@@ -166,8 +175,13 @@ async function main(): Promise<void> {
       "         to the token configured on Railway and retry."
     );
   }
-  const urls = readSitemapUrls();
-  console.log(`Pre-rendering ${urls.length} fund pages...`);
+  let urls = readSitemapUrls();
+  if (LIMIT > 0 && LIMIT < urls.length) {
+    urls = urls.slice(0, LIMIT);
+    console.log(`Pre-rendering first ${urls.length} of ${readSitemapUrls().length} fund pages (--limit ${LIMIT})...`);
+  } else {
+    console.log(`Pre-rendering ${urls.length} fund pages...`);
+  }
 
   const stopServer = await startStaticServer();
   console.log(`Local server ready at ${LOCAL_BASE}`);
@@ -177,9 +191,12 @@ async function main(): Promise<void> {
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
   });
 
+  const runStartedAt = Date.now();
   try {
     const { ok, failed } = await runBatch(urls, CONCURRENCY, url => prerenderOne(browser, url));
-    console.log(`Pre-rendered: ${ok} / ${urls.length}`);
+    const totalSec = ((Date.now() - runStartedAt) / 1000).toFixed(1);
+    const avgSec = urls.length > 0 ? (Number(totalSec) / urls.length).toFixed(2) : "0";
+    console.log(`\nPre-rendered: ${ok} / ${urls.length} in ${totalSec}s (avg ${avgSec}s/page)`);
     if (failed.length > 0) {
       console.log(`\nFailures (${failed.length}):`);
       failed.forEach(f => console.log(`  - ${f}`));
