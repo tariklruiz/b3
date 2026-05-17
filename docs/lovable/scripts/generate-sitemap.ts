@@ -9,7 +9,11 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const API_URL = "https://fii-prices.up.railway.app/fiis";
+// min_dividend_months filters out tickers without recent dividend activity.
+// Funds without any dividend record fail to pre-render (their /fundo/dividendos
+// returns 404, which the React app surfaces as an error state). Excluding them
+// from the sitemap also keeps Google focused on funds with substantive content.
+const API_URL = "https://fii-prices.up.railway.app/fiis?min_dividend_months=6";
 const SITE_URL = "https://fiiguia.com.br";
 const OUTPUT_PATH = resolve(process.cwd(), "dist", "sitemap.xml");
 

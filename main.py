@@ -296,20 +296,41 @@ def get_tickers(request: Request, search: str = Query(None)):
 
 @app.get("/fiis")
 @limiter.limit("20/minute")
-def get_fiis(request: Request):
+def get_fiis(
+    request: Request,
+    min_dividend_months: int = Query(0, ge=0, le=60),
+):
     """List every FII and FIAGRO known to the platform.
 
     Sources from fund_listing, which is loaded from B3's official
     "Fundos Listados" CSVs (FII and FIAGRO). Returns one entry per
     ticker in traded format (e.g. MXRF11), suitable for sitemap
     generation and FII-scoped listings.
+
+    Query params:
+      min_dividend_months: if > 0, only include tickers that paid at least
+        one dividend within the last N months (based on data_base in the
+        dividendos table). Default 0 returns every listed ticker.
     """
-    rows = query_all(
-        "SELECT ticker, codigo, razao_social, fundo, tipo_fundo "
-        "FROM fund_listing "
-        "WHERE ticker IS NOT NULL "
-        "ORDER BY ticker"
-    )
+    if min_dividend_months > 0:
+        # Inner join filters out tickers with no recent dividend activity.
+        # We use data_base (announcement date) per the agreed convention.
+        rows = query_all(
+            "SELECT DISTINCT fl.ticker, fl.codigo, fl.razao_social, fl.fundo, fl.tipo_fundo "
+            "FROM fund_listing fl "
+            "INNER JOIN dividendos d ON d.ticker = fl.ticker "
+            "WHERE fl.ticker IS NOT NULL "
+            "AND d.data_base >= (CURRENT_DATE - (%s || ' months')::interval) "
+            "ORDER BY fl.ticker",
+            (min_dividend_months,),
+        )
+    else:
+        rows = query_all(
+            "SELECT ticker, codigo, razao_social, fundo, tipo_fundo "
+            "FROM fund_listing "
+            "WHERE ticker IS NOT NULL "
+            "ORDER BY ticker"
+        )
     tickers = [
         {
             "ticker": r["ticker"],
