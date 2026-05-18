@@ -320,7 +320,7 @@ def get_fiis(
         rows = query_all(
             "SELECT DISTINCT fl.ticker, fl.codigo, fl.razao_social, fl.fundo, fl.tipo_fundo "
             "FROM fund_listing fl "
-            "INNER JOIN dividendos d ON d.ticker = fl.ticker "
+            "INNER JOIN dividendos d ON d.cod_negociacao = fl.ticker "
             "WHERE fl.ticker IS NOT NULL "
             "AND d.data_base >= %s "
             "ORDER BY fl.ticker",
