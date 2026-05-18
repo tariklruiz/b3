@@ -313,16 +313,18 @@ def get_fiis(
         dividendos table). Default 0 returns every listed ticker.
     """
     if min_dividend_months > 0:
-        # Inner join filters out tickers with no recent dividend activity.
-        # We use data_base (announcement date) per the agreed convention.
+        # Compute the cutoff date in Python to avoid Postgres-version-specific
+        # interval math. Inner join filters out tickers with no recent dividends.
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=min_dividend_months * 31)
         rows = query_all(
             "SELECT DISTINCT fl.ticker, fl.codigo, fl.razao_social, fl.fundo, fl.tipo_fundo "
             "FROM fund_listing fl "
             "INNER JOIN dividendos d ON d.ticker = fl.ticker "
             "WHERE fl.ticker IS NOT NULL "
-            "AND d.data_base >= (CURRENT_DATE - make_interval(months => %s)) "
+            "AND d.data_base >= %s "
             "ORDER BY fl.ticker",
-            (min_dividend_months,),
+            (cutoff,),
         )
     else:
         rows = query_all(
